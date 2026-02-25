@@ -16,7 +16,7 @@ dependencies = [
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "python-dotenv>=0.19.0",
-    "das-bridge @ file:///home/victor/code/das-bridge",
+    # das-bridge is installed separately as editable: pip install -e /path/to/das-bridge
 ]
 
 [project.optional-dependencies]

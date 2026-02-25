@@ -2,10 +2,30 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
+from typing import Any
 
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings
+
+
+class DasServerConfig(BaseModel):
+    """A single DAS-bridge server entry from the DAS_SERVERS env var."""
+
+    broker_id: str
+    host: str
+    port: int
+    username: str
+    password: str
+    accounts: list[str] = []
+    smart_routes: list[str] = []
+    locate_routes: dict[str, int] = {}
+
+    @property
+    def broker_id_lower(self) -> str:
+        return self.broker_id.lower()
 
 
 class AppConfig(BaseSettings):
@@ -14,7 +34,6 @@ class AppConfig(BaseSettings):
     # Server
     app_host: str = "127.0.0.1"
     app_port: int = 8787
-    open_browser: bool = True
 
     # Database
     db_path: str = "./das_copy_trader.db"
@@ -25,11 +44,23 @@ class AppConfig(BaseSettings):
     # Frontend static dir (filled at build time)
     static_dir: str = ""
 
+    # DAS-bridge server configurations (JSON array string)
+    das_servers: str = "[]"
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }
+
+    @property
+    def parsed_das_servers(self) -> list[DasServerConfig]:
+        """Parse the DAS_SERVERS JSON string into a list of DasServerConfig objects."""
+        try:
+            data: list[dict[str, Any]] = json.loads(self.das_servers)
+            return [DasServerConfig(**item) for item in data]
+        except Exception:
+            return []
 
     @property
     def database_url(self) -> str:

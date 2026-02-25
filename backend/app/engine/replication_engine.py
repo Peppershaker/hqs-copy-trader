@@ -11,8 +11,6 @@ import logging
 from collections.abc import Callable, Coroutine
 from typing import Any, TypeVar
 
-from app.engine.order_replicator import OrderReplicator
-from app.services.audit_service import AuditService
 from das_bridge import DASClient
 from das_bridge.domain.events.order_events import (
     OrderAcceptedEvent,
@@ -30,7 +28,9 @@ from app.engine.action_queue import ActionQueue, QueuedActionType
 from app.engine.blacklist_manager import BlacklistManager
 from app.engine.locate_replicator import LocateReplicator
 from app.engine.multiplier_manager import MultiplierManager
+from app.engine.order_replicator import OrderReplicator
 from app.engine.position_tracker import PositionTracker
+from app.services.audit_service import AuditService
 from app.services.das_service import DASService
 from app.services.notification_service import NotificationService
 

@@ -15,10 +15,13 @@ export class WSClient {
   private shouldReconnect = true;
 
   constructor(url?: string) {
-    // In production, use the same host; in dev, point to backend
+    // In production the frontend is served by the backend on the same port.
+    // In dev the backend is always on NEXT_PUBLIC_WS_PORT (default 8787).
+    // Do NOT fall back to window.location.port — in dev that would be 3000.
+    const wsPort = process.env.NEXT_PUBLIC_WS_PORT || "8787";
     const wsBase =
       typeof window !== "undefined"
-        ? `ws://${window.location.hostname}:${process.env.NEXT_PUBLIC_WS_PORT || window.location.port || "8787"}`
+        ? `ws://${window.location.hostname}:${wsPort}`
         : "ws://127.0.0.1:8787";
     this.url = url || `${wsBase}/ws`;
   }

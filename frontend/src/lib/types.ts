@@ -192,6 +192,19 @@ export interface AuditLogEntry {
   details: string | null;
 }
 
+// --- DAS Bridge Server Config ---
+
+export interface DasServer {
+  broker_id: string;
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  accounts: string[];
+  smart_routes: string[];
+  locate_routes: Record<string, number>;
+}
+
 // --- Queued Action (disconnected follower) ---
 
 export interface QueuedAction {

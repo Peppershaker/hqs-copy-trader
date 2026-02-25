@@ -39,3 +39,10 @@ next-env.d.ts
 # egg-info
 **/egg-info/
 **/*.egg-info/
+
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+backend/das_copy_trader.db

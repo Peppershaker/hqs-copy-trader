@@ -134,6 +134,10 @@ export const api = {
         body: JSON.stringify({ action_ids: actionIds }),
       },
     ),
+  // DAS Server configs
+  getDasServers: () =>
+    request<import("./types").DasServer[]>("/api/das-servers"),
+
   getAuditLog: (params?: {
     limit?: number;
     offset?: number;

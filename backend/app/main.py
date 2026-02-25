@@ -7,7 +7,6 @@ In production, serves the Next.js static build from /static.
 from __future__ import annotations
 
 import logging
-import webbrowser
 from contextlib import asynccontextmanager
 
 # Route modules
@@ -66,13 +65,6 @@ async def lifespan(app: FastAPI):
         config.app_host,
         config.app_port,
     )
-
-    # Open browser
-    if config.open_browser:
-        try:
-            webbrowser.open(f"http://{config.app_host}:{config.app_port}")
-        except Exception:
-            pass
 
     yield
 

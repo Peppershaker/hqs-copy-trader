@@ -3,7 +3,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api-client";
 import { useAppStore } from "@/stores/app-store";
-import type { MasterConfigCreate, FollowerCreate, Follower } from "@/lib/types";
+import type {
+  MasterConfigCreate,
+  FollowerCreate,
+  Follower,
+  DasServer,
+} from "@/lib/types";
 
 // --- Reusable input field component ---
 function Field({
@@ -38,6 +43,79 @@ function Field({
   );
 }
 
+// --- Broker dropdown populated from DAS_SERVERS config ---
+function BrokerSelect({
+  dasServers,
+  value,
+  onSelect,
+}: {
+  dasServers: DasServer[];
+  value: string; // lowercase broker_id currently set on the form
+  onSelect: (server: DasServer) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-muted-foreground">
+        Broker
+      </label>
+      <select
+        className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+        value={value}
+        onChange={(e) => {
+          const server = dasServers.find(
+            (s) => s.broker_id.toLowerCase() === e.target.value,
+          );
+          if (server) onSelect(server);
+        }}
+      >
+        <option value="">Select broker…</option>
+        {dasServers.map((s) => (
+          <option key={s.broker_id} value={s.broker_id.toLowerCase()}>
+            {s.broker_id}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+// --- Account dropdown (falls back to free-text when no accounts available) ---
+function AccountSelect({
+  accounts,
+  value,
+  onChange,
+}: {
+  accounts: string[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  if (accounts.length === 0) {
+    return (
+      <Field label="Account ID" value={value} onChange={onChange} required />
+    );
+  }
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-muted-foreground">
+        Account ID
+      </label>
+      <select
+        className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required
+      >
+        <option value="">Select account…</option>
+        {accounts.map((a) => (
+          <option key={a} value={a}>
+            {a}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 // ============================================================
 // Master Config Form
 // ============================================================
@@ -47,6 +125,7 @@ function MasterConfigForm() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [dasServers, setDasServers] = useState<DasServer[]>([]);
 
   const [form, setForm] = useState<MasterConfigCreate>({
     broker_id: "",
@@ -56,6 +135,10 @@ function MasterConfigForm() {
     password: "",
     account_id: "",
   });
+
+  useEffect(() => {
+    api.getDasServers().then(setDasServers).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (masterConfig) {
@@ -69,6 +152,22 @@ function MasterConfigForm() {
       }));
     }
   }, [masterConfig]);
+
+  const handleBrokerSelect = (server: DasServer) => {
+    setForm((prev) => ({
+      ...prev,
+      broker_id: server.broker_id.toLowerCase(),
+      host: server.host,
+      port: server.port,
+      username: server.username,
+      password: server.password,
+      account_id: "",
+    }));
+  };
+
+  const selectedServer = dasServers.find(
+    (s) => s.broker_id.toLowerCase() === form.broker_id,
+  );
 
   const handleSave = async () => {
     setSaving(true);
@@ -93,12 +192,10 @@ function MasterConfigForm() {
     <div className="rounded-lg border border-border bg-card p-6">
       <h2 className="text-base font-semibold mb-4">Master Account</h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Field
-          label="Broker ID"
+        <BrokerSelect
+          dasServers={dasServers}
           value={form.broker_id}
-          onChange={set("broker_id")}
-          placeholder="e.g. DAS"
-          required
+          onSelect={handleBrokerSelect}
         />
         <Field
           label="Host"
@@ -127,11 +224,10 @@ function MasterConfigForm() {
           type="password"
           required
         />
-        <Field
-          label="Account ID"
+        <AccountSelect
+          accounts={selectedServer?.accounts ?? []}
           value={form.account_id}
           onChange={set("account_id")}
-          required
         />
       </div>
       {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
@@ -177,6 +273,7 @@ function FollowerForm({
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dasServers, setDasServers] = useState<DasServer[]>([]);
 
   const [form, setForm] = useState<FollowerCreate>(() => {
     if (initial) {
@@ -199,6 +296,26 @@ function FollowerForm({
     }
     return { ...DEFAULT_FOLLOWER };
   });
+
+  useEffect(() => {
+    api.getDasServers().then(setDasServers).catch(() => {});
+  }, []);
+
+  const handleBrokerSelect = (server: DasServer) => {
+    setForm((prev) => ({
+      ...prev,
+      broker_id: server.broker_id.toLowerCase(),
+      host: server.host,
+      port: server.port,
+      username: server.username,
+      password: server.password,
+      account_id: "",
+    }));
+  };
+
+  const selectedServer = dasServers.find(
+    (s) => s.broker_id.toLowerCase() === form.broker_id,
+  );
 
   const handleSave = async () => {
     setSaving(true);
@@ -252,12 +369,10 @@ function FollowerForm({
           placeholder="Follower 1"
           required
         />
-        <Field
-          label="Broker ID"
+        <BrokerSelect
+          dasServers={dasServers}
           value={form.broker_id}
-          onChange={set("broker_id")}
-          placeholder="DAS"
-          required
+          onSelect={handleBrokerSelect}
         />
         <Field label="Host" value={form.host} onChange={set("host")} required />
         <Field
@@ -280,11 +395,10 @@ function FollowerForm({
           type="password"
           required
         />
-        <Field
-          label="Account ID"
+        <AccountSelect
+          accounts={selectedServer?.accounts ?? []}
           value={form.account_id}
           onChange={set("account_id")}
-          required
         />
         <Field
           label="Base Multiplier"

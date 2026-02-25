@@ -30,6 +30,15 @@ def set_service_getters(
     _get_engine = engine_getter
 
 
+@router.get("/das-servers")
+async def get_das_servers() -> list[dict[str, Any]]:
+    """Return the list of DAS-bridge server configurations from DAS_SERVERS env var."""
+    from app.config import get_config
+
+    config = get_config()
+    return [s.model_dump() for s in config.parsed_das_servers]
+
+
 @router.get("/status")
 async def get_status() -> dict[str, Any]:
     """Get system health and connection state."""
