@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Read(//home/victor/code/das-bridge/**)"
+      "Read(//home/victor/code/das-bridge/**)",
+      "Read(//home/victor/code/**)"
     ]
   }
 }

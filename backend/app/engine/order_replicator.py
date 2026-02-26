@@ -44,9 +44,9 @@ class OrderReplicator:
         self._audit = audit
         self._notifier = notifier
 
-        # master_order_token → {follower_id: follower_order_token}
+        # master_order_id → {follower_id: follower_order_id}
         self._order_map: dict[int, dict[str, int]] = {}
-        # follower_order_token → master_order_token (reverse lookup)
+        # follower_order_id → master_order_id (reverse lookup)
         self._reverse_map: dict[int, int] = {}
 
     def _scale_quantity(self, quantity: int, follower_id: str, symbol: str) -> int:
@@ -60,10 +60,11 @@ class OrderReplicator:
         master_order: BaseOrder,
         follower_id: str,
         follower_client: DASClient,
+        master_order_id: int,
     ) -> int | None:
         """Replicate a master order to a single follower.
 
-        Returns the follower order token on success, None on failure.
+        Returns the follower order_id on success, None on failure.
 
         .. todo:: Buying power check before submission.
            If insufficient BP, alert the user instead of submitting.
@@ -94,15 +95,13 @@ class OrderReplicator:
                 )
                 return None
 
-            if result and result.token:
+            if result and result.order_id is not None:
+                follower_order_id = result.order_id
                 # Track mapping
-                master_token = master_order.token
-                if master_token is None:
-                    return result.token
-                if master_token not in self._order_map:
-                    self._order_map[master_token] = {}
-                self._order_map[master_token][follower_id] = result.token
-                self._reverse_map[result.token] = master_token
+                if master_order_id not in self._order_map:
+                    self._order_map[master_order_id] = {}
+                self._order_map[master_order_id][follower_id] = follower_order_id
+                self._reverse_map[follower_order_id] = master_order_id
 
                 await self._audit.info(
                     "order",
@@ -111,12 +110,12 @@ class OrderReplicator:
                     follower_id=follower_id,
                     symbol=symbol,
                     details={
-                        "master_token": master_token,
-                        "follower_token": result.token,
+                        "master_order_id": master_order_id,
+                        "follower_order_id": follower_order_id,
                         "multiplier": self._multiplier_mgr.get_effective(follower_id, symbol),
                     },
                 )
-                return result.token
+                return follower_order_id
 
         except Exception as e:
             await self._audit.error(
@@ -200,36 +199,34 @@ class OrderReplicator:
 
     async def cancel_follower_orders(
         self,
-        master_order_token: int,
+        master_order_id: int,
         follower_clients: dict[str, DASClient],
     ) -> dict[str, bool]:
         """Cancel all follower orders that correspond to a master order.
 
         Returns {follower_id: success_bool}.
         """
-        follower_tokens = self._order_map.get(master_order_token, {})
+        follower_ids = self._order_map.get(master_order_id, {})
         results: dict[str, bool] = {}
 
-        for follower_id, follower_token in follower_tokens.items():
+        for follower_id, follower_order_id in follower_ids.items():
             client = follower_clients.get(follower_id)
             if not client or not client.is_running:
                 results[follower_id] = False
                 continue
 
             try:
-                order = client.get_order_by_token(follower_token)
-                if order and order.server_order_id:
-                    success = await client.cancel_order(order.server_order_id)
-                    results[follower_id] = success
-                    if success:
-                        await self._audit.info(
-                            "order",
-                            f"Cancelled {order.symbol} order on {follower_id}",
-                            follower_id=follower_id,
-                            symbol=order.symbol,
-                        )
-                else:
-                    results[follower_id] = False
+                success = await client.cancel_order(follower_order_id)
+                results[follower_id] = success
+                if success:
+                    order = client.get_order(follower_order_id)
+                    symbol = order.symbol if order else "UNKNOWN"
+                    await self._audit.info(
+                        "order",
+                        f"Cancelled {symbol} order on {follower_id}",
+                        follower_id=follower_id,
+                        symbol=symbol,
+                    )
             except Exception as e:
                 results[follower_id] = False
                 await self._audit.error(
@@ -242,7 +239,7 @@ class OrderReplicator:
 
     async def replace_follower_orders(
         self,
-        master_order_token: int,
+        master_order_id: int,
         new_quantity: int | None,
         new_price: Decimal | None,
         follower_clients: dict[str, DASClient],
@@ -252,18 +249,18 @@ class OrderReplicator:
         Scales quantity but preserves price from master.
         Returns {follower_id: success_bool}.
         """
-        follower_tokens = self._order_map.get(master_order_token, {})
+        follower_ids = self._order_map.get(master_order_id, {})
         results: dict[str, bool] = {}
 
-        for follower_id, follower_token in follower_tokens.items():
+        for follower_id, follower_order_id in follower_ids.items():
             client = follower_clients.get(follower_id)
             if not client or not client.is_running:
                 results[follower_id] = False
                 continue
 
             try:
-                order = client.get_order_by_token(follower_token)
-                if not order or not order.server_order_id:
+                order = client.get_order(follower_order_id)
+                if not order:
                     results[follower_id] = False
                     continue
 
@@ -273,7 +270,7 @@ class OrderReplicator:
                     scaled_qty = self._scale_quantity(new_quantity, follower_id, order.symbol)
 
                 success = await client.replace_order(
-                    order.server_order_id,
+                    follower_order_id,
                     new_quantity=scaled_qty,
                     new_price=new_price,
                 )
@@ -297,16 +294,16 @@ class OrderReplicator:
 
         return results
 
-    def get_follower_tokens(self, master_order_token: int) -> dict[str, int]:
-        """Get all follower order tokens for a master order."""
-        return dict(self._order_map.get(master_order_token, {}))
+    def get_follower_order_ids(self, master_order_id: int) -> dict[str, int]:
+        """Get all follower order IDs for a master order."""
+        return dict(self._order_map.get(master_order_id, {}))
 
-    def get_master_token(self, follower_order_token: int) -> int | None:
-        """Reverse lookup: follower token → master token."""
-        return self._reverse_map.get(follower_order_token)
+    def get_master_order_id(self, follower_order_id: int) -> int | None:
+        """Reverse lookup: follower order_id → master order_id."""
+        return self._reverse_map.get(follower_order_id)
 
-    def cleanup_order(self, master_order_token: int) -> None:
+    def cleanup_order(self, master_order_id: int) -> None:
         """Remove tracking for a completed/cancelled master order."""
-        follower_tokens = self._order_map.pop(master_order_token, {})
-        for token in follower_tokens.values():
-            self._reverse_map.pop(token, None)
+        follower_ids = self._order_map.pop(master_order_id, {})
+        for oid in follower_ids.values():
+            self._reverse_map.pop(oid, None)

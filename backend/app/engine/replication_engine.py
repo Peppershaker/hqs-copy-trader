@@ -220,14 +220,15 @@ class ReplicationEngine:
         if not master:
             return
 
-        order = master.get_order(event.order_id)
+        master_order_id = event.order_id
+        order = master.get_order(master_order_id)
         if not order:
-            logger.warning("Master order %s not found for replication", event.order_id)
+            logger.warning("Master order %s not found for replication", master_order_id)
             return
 
         # Skip DAS Bridge server-status probe orders (SPY via TESTROUTE)
         if order.symbol == "SPY" and order.route == "TESTROUTE":
-            logger.debug("Ignoring probe order %s (SPY/TESTROUTE)", event.order_id)
+            logger.debug("Ignoring probe order %s (SPY/TESTROUTE)", master_order_id)
             return
 
         followers = self._das.follower_clients
@@ -244,16 +245,7 @@ class ReplicationEngine:
                     action_type=QueuedActionType.ORDER_SUBMIT,
                     symbol=order.symbol,
                     payload={
-                        "order_snapshot": {
-                            "type": type(order).__name__,
-                            "symbol": order.symbol,
-                            "side": str(order.side),
-                            "quantity": order.quantity,
-                            "token": order.token,
-                            "price": str(getattr(order, "price", "")),
-                            "stop_price": str(getattr(order, "stop_price", "")),
-                            "limit_price": str(getattr(order, "limit_price", "")),
-                        },
+                        "master_order_id": master_order_id,
                     },
                 )
                 await self._audit.warn(
@@ -274,21 +266,23 @@ class ReplicationEngine:
                 results[fid] = None
                 continue
 
-            token = await self._order_replicator.replicate_order(order, fid, client)
-            results[fid] = token
+            follower_oid = await self._order_replicator.replicate_order(
+                order, fid, client, master_order_id=master_order_id
+            )
+            results[fid] = follower_oid
 
         # Notify UI
         await self._notifier.broadcast(
             "order_replicated",
             {
                 "symbol": order.symbol,
-                "master_order_id": event.order_id,
-                "master_token": order.token,
+                "master_order_id": master_order_id,
                 "side": str(order.side),
                 "quantity": order.quantity,
                 "type": type(order).__name__,
                 "follower_results": {
-                    fid: {"token": t, "success": t is not None} for fid, t in results.items()
+                    fid: {"order_id": oid, "success": oid is not None}
+                    for fid, oid in results.items()
                 },
             },
         )
@@ -299,25 +293,24 @@ class ReplicationEngine:
         if not master:
             return
 
-        order = master.get_order(event.order_id)
-        token = order.token if order else None
-        if not token:
-            return
+        master_order_id = event.order_id
+        order = master.get_order(master_order_id)
 
         # Skip DAS Bridge server-status probe orders (SPY via TESTROUTE)
         if order and order.symbol == "SPY" and order.route == "TESTROUTE":
-            logger.debug("Ignoring probe cancel %s (SPY/TESTROUTE)", event.order_id)
+            logger.debug("Ignoring probe cancel %s (SPY/TESTROUTE)", master_order_id)
             return
+
+        symbol = order.symbol if order else "UNKNOWN"
 
         # Queue cancels for disconnected followers
         for fid, client in self._das.follower_clients.items():
             if not client.is_running:
-                symbol = order.symbol if order else "UNKNOWN"
                 self._action_queue.enqueue(
                     follower_id=fid,
                     action_type=QueuedActionType.ORDER_CANCEL,
                     symbol=symbol,
-                    payload={"master_order_token": token},
+                    payload={"master_order_id": master_order_id},
                 )
                 await self._notifier.broadcast(
                     "action_queued",
@@ -330,14 +323,13 @@ class ReplicationEngine:
                 )
 
         results = await self._order_replicator.cancel_follower_orders(
-            token, self._das.follower_clients
+            master_order_id, self._das.follower_clients
         )
 
         await self._notifier.broadcast(
             "order_cancelled",
             {
-                "master_order_id": event.order_id,
-                "master_token": token,
+                "master_order_id": master_order_id,
                 "follower_results": results,
             },
         )
@@ -348,7 +340,8 @@ class ReplicationEngine:
         if not master:
             return
 
-        order = master.get_order(event.order_id)
+        master_order_id = event.order_id
+        order = master.get_order(master_order_id)
         if not order:
             return
 
@@ -360,7 +353,7 @@ class ReplicationEngine:
                     action_type=QueuedActionType.ORDER_REPLACE,
                     symbol=order.symbol,
                     payload={
-                        "master_order_token": order.token,
+                        "master_order_id": master_order_id,
                         "new_quantity": order.quantity,
                         "new_price": str(getattr(order, "price", "")),
                     },
@@ -376,7 +369,7 @@ class ReplicationEngine:
                 )
 
         results = await self._order_replicator.replace_follower_orders(
-            order.token,
+            master_order_id,
             new_quantity=order.quantity,
             new_price=getattr(order, "price", None),
             follower_clients=self._das.follower_clients,
@@ -385,8 +378,7 @@ class ReplicationEngine:
         await self._notifier.broadcast(
             "order_replaced",
             {
-                "master_order_id": event.order_id,
-                "master_token": order.token,
+                "master_order_id": master_order_id,
                 "follower_results": results,
             },
         )
@@ -617,45 +609,46 @@ class ReplicationEngine:
         from app.engine.action_queue import QueuedActionType
 
         if action.action_type == QueuedActionType.ORDER_SUBMIT:
-            snap = action.payload.get("order_snapshot", {})
-            # We need the master order object; try to fetch it by token
-            master_token = snap.get("token")
+            master_order_id = action.payload.get("master_order_id")
             master_order = (
-                master.get_order_by_token(master_token) if master and master_token else None
+                master.get_order(master_order_id) if master and master_order_id else None
             )
-            if master_order:
-                token = await self._order_replicator.replicate_order(
-                    master_order, action.follower_id, follower_client
+            if master_order and master_order_id is not None:
+                follower_oid = await self._order_replicator.replicate_order(
+                    master_order,
+                    action.follower_id,
+                    follower_client,
+                    master_order_id=master_order_id,
                 )
-                return {"follower_token": token}
+                return {"follower_order_id": follower_oid}
             else:
                 return {"skipped": True, "reason": "Master order no longer exists"}
 
         elif action.action_type == QueuedActionType.ORDER_CANCEL:
-            master_token = action.payload.get("master_order_token")
-            if master_token:
+            master_order_id = action.payload.get("master_order_id")
+            if master_order_id is not None:
                 res = await self._order_replicator.cancel_follower_orders(
-                    master_token, {action.follower_id: follower_client}
+                    master_order_id, {action.follower_id: follower_client}
                 )
                 return {"cancel_result": res.get(action.follower_id, False)}
-            return {"skipped": True, "reason": "No master token"}
+            return {"skipped": True, "reason": "No master order ID"}
 
         elif action.action_type == QueuedActionType.ORDER_REPLACE:
-            master_token = action.payload.get("master_order_token")
+            master_order_id = action.payload.get("master_order_id")
             new_qty = action.payload.get("new_quantity")
             new_price_str = action.payload.get("new_price", "")
             from decimal import Decimal
 
             new_price = Decimal(new_price_str) if new_price_str else None
-            if master_token:
+            if master_order_id is not None:
                 res = await self._order_replicator.replace_follower_orders(
-                    master_token,
+                    master_order_id,
                     new_quantity=new_qty,
                     new_price=new_price,
                     follower_clients={action.follower_id: follower_client},
                 )
                 return {"replace_result": res.get(action.follower_id, False)}
-            return {"skipped": True, "reason": "No master token"}
+            return {"skipped": True, "reason": "No master order ID"}
 
         elif action.action_type == QueuedActionType.LOCATE:
             payload = action.payload
