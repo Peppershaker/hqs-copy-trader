@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.database import get_db
 from app.models.follower import Follower
 from app.schemas.accounts import (
@@ -10,9 +14,6 @@ from app.schemas.accounts import (
     FollowerUpdate,
     MultiplierUpdate,
 )
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/api/followers", tags=["followers"])
 

@@ -9,9 +9,14 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
 # Route modules
 from app.api import (
     blacklist,
+    env_config,
     followers,
     locates,
     master,
@@ -20,15 +25,12 @@ from app.api import (
     system,
     websocket,
 )
-from app.config import get_config
+from app.config import apply_env_text, get_config
 from app.database import close_db, init_db
 from app.engine.replication_engine import ReplicationEngine
 from app.services.audit_service import AuditService
 from app.services.das_service import DASService
 from app.services.notification_service import NotificationService
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,26 @@ async def lifespan(app: FastAPI):
     # Initialize database
     await init_db()
     logger.info("Database initialized at %s", config.db_path)
+
+    # Load persisted env vars from DB and apply to running process
+    try:
+        from sqlalchemy import select as sa_select
+
+        from app.database import get_session_factory
+        from app.models.env_config import EnvConfig
+
+        factory = get_session_factory()
+        async with factory() as session:
+            result = await session.execute(sa_select(EnvConfig).where(EnvConfig.id == 1))
+            env_row = result.scalar_one_or_none()
+            if env_row and env_row.content.strip():
+                applied = apply_env_text(env_row.content)
+                logger.info("Loaded %d env vars from DB", len(applied))
+    except Exception as exc:
+        logger.warning("Could not load env vars from DB: %s", exc)
+
+    # Re-read config after env vars are applied
+    config = get_config()
 
     # Inject dependencies into route modules
     locates.set_engine_getter(lambda: _engine)
@@ -96,6 +118,7 @@ def create_app() -> FastAPI:
     )
 
     # Register API routes
+    app.include_router(env_config.router)
     app.include_router(master.router)
     app.include_router(followers.router)
     app.include_router(blacklist.router)

@@ -9,9 +9,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from app.engine.replication_engine import ReplicationEngine
 from fastapi import APIRouter
 from pydantic import BaseModel
+
+from app.engine.replication_engine import ReplicationEngine
 
 router = APIRouter(prefix="/api", tags=["queue"])
 
@@ -58,9 +59,7 @@ async def list_queued_actions(follower_id: str) -> Any:
 
 
 @router.post("/queued-actions/{follower_id}/replay")
-async def replay_queued_actions(
-    follower_id: str, body: ReplayRequest
-) -> dict[str, Any]:
+async def replay_queued_actions(follower_id: str, body: ReplayRequest) -> dict[str, Any]:
     """Replay selected queued actions on a reconnected follower."""
     if _get_engine is None:
         return {"error": "Not initialized"}
@@ -70,9 +69,7 @@ async def replay_queued_actions(
 
 
 @router.post("/queued-actions/{follower_id}/discard")
-async def discard_queued_actions(
-    follower_id: str, body: DiscardRequest
-) -> dict[str, Any]:
+async def discard_queued_actions(follower_id: str, body: DiscardRequest) -> dict[str, Any]:
     """Discard selected queued actions without replaying."""
     if _get_engine is None:
         return {"error": "Not initialized"}

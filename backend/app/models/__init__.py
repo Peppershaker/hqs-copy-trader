@@ -2,6 +2,7 @@
 
 from app.models.audit_log import AuditLog
 from app.models.blacklist import BlacklistEntry
+from app.models.env_config import EnvConfig
 from app.models.follower import Follower
 from app.models.locate_map import LocateMap
 from app.models.master import MasterConfig
@@ -16,4 +17,5 @@ __all__ = [
     "LocateMap",
     "SymbolMultiplier",
     "AuditLog",
+    "EnvConfig",
 ]

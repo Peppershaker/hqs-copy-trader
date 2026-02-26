@@ -5,8 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from app.engine.replication_engine import ReplicationEngine
 from fastapi import APIRouter, HTTPException
+
+from app.engine.replication_engine import ReplicationEngine
 
 router = APIRouter(prefix="/api/locates", tags=["locates"])
 

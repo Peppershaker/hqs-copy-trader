@@ -48,6 +48,45 @@ async def get_status() -> dict[str, Any]:
     return das.get_status()
 
 
+@router.get("/health")
+async def get_health() -> dict[str, Any]:
+    """Get detailed health diagnostics for all accounts.
+
+    Returns per-account server status (API, Order, Quote), heartbeat health,
+    manager run-states, and key metrics (orders, trades, positions, uptime).
+    """
+    if _get_das_service is None:
+        return {"running": False, "error": "Not initialized"}
+
+    das = _get_das_service()
+    result: dict[str, Any] = {
+        "running": das.is_running,
+        "master": None,
+        "followers": {},
+    }
+
+    master = das.master_client
+    if master:
+        try:
+            result["master"] = {
+                "health": master.get_health_status(),
+                "metrics": master.get_metrics(),
+            }
+        except Exception as e:
+            result["master"] = {"error": str(e)}
+
+    for fid, client in das.follower_clients.items():
+        try:
+            result["followers"][fid] = {
+                "health": client.get_health_status(),
+                "metrics": client.get_metrics(),
+            }
+        except Exception as e:
+            result["followers"][fid] = {"error": str(e)}
+
+    return result
+
+
 @router.post("/start")
 async def start_system() -> dict[str, Any]:
     """Start all DAS connections and the replication engine."""

@@ -164,4 +164,8 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ content }),
     }),
+
+  // Health / Diagnostics
+  getHealth: () =>
+    request<import("./types").HealthResponse>("/api/health"),
 };

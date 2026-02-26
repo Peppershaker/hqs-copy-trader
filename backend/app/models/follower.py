@@ -28,7 +28,7 @@ class Follower(Base):
     locate_retry_timeout: Mapped[int] = mapped_column(Integer, nullable=False, default=300)
     auto_accept_locates: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    locate_routes: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    locate_routes: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

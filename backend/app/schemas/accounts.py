@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -17,7 +16,7 @@ class MasterConfigCreate(BaseModel):
     username: str
     password: str
     account_id: str
-    locate_routes: list[dict[str, Any]] | None = None
+    locate_routes: dict[str, int] | None = None
 
 
 class MasterConfigResponse(BaseModel):
@@ -27,7 +26,7 @@ class MasterConfigResponse(BaseModel):
     port: int
     username: str
     account_id: str
-    locate_routes: list[dict[str, Any]] | None = None
+    locate_routes: dict[str, int] | None = None
     updated_at: datetime
 
     model_config = {"from_attributes": True}
@@ -50,7 +49,7 @@ class FollowerCreate(BaseModel):
     locate_retry_timeout: int = Field(default=300, ge=0)
     auto_accept_locates: bool = False
     enabled: bool = True
-    locate_routes: list[dict[str, Any]] | None = None
+    locate_routes: dict[str, int] | None = None
 
 
 class FollowerUpdate(BaseModel):
@@ -66,7 +65,7 @@ class FollowerUpdate(BaseModel):
     locate_retry_timeout: int | None = Field(default=None, ge=0)
     auto_accept_locates: bool | None = None
     enabled: bool | None = None
-    locate_routes: list[dict[str, Any]] | None = None
+    locate_routes: dict[str, int] | None = None
 
 
 class FollowerResponse(BaseModel):
@@ -82,7 +81,7 @@ class FollowerResponse(BaseModel):
     locate_retry_timeout: int
     auto_accept_locates: bool
     enabled: bool
-    locate_routes: list[dict[str, Any]] | None = None
+    locate_routes: dict[str, int] | None = None
     created_at: datetime
     updated_at: datetime
 

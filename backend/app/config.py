@@ -48,8 +48,6 @@ class AppConfig(BaseSettings):
     das_servers: str = "[]"
 
     model_config = {
-        "env_file": ".env",
-        "env_file_encoding": "utf-8",
         "extra": "ignore",
     }
 
@@ -94,3 +92,28 @@ def get_config() -> AppConfig:
     if _config is None:
         _config = AppConfig()
     return _config
+
+
+def reset_config() -> None:
+    """Reset the cached config so the next get_config() picks up new env vars."""
+    global _config
+    _config = None
+
+
+def apply_env_text(content: str) -> dict[str, str]:
+    """Parse raw .env text, push every key into os.environ, reset the config cache.
+
+    Returns the dict of key→value pairs that were parsed (comments and blanks excluded).
+    """
+    import io
+
+    from dotenv import dotenv_values
+
+    parsed: dict[str, str] = {}
+    for key, value in dotenv_values(stream=io.StringIO(content)).items():
+        if key and value is not None:
+            os.environ[key] = value
+            parsed[key] = value
+
+    reset_config()
+    return parsed

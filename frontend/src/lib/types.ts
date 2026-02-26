@@ -223,3 +223,67 @@ export interface EnvConfigResponse {
   updated_at: string | null;
   parsed_keys: string[];
 }
+
+// --- Health / Diagnostics ---
+
+export interface ServerState {
+  status: "unknown" | "connected" | "disconnected";
+  is_connected: boolean;
+  last_connected: string | null;
+  last_disconnected: string | null;
+  connect_count: number;
+  disconnect_count: number;
+  last_error: string | null;
+}
+
+export interface HeartbeatStatus {
+  health: "healthy" | "degraded" | "critical" | "unknown";
+  last_heartbeat_sent_time: number;
+  seconds_since_heartbeat_sent: number | null;
+  last_heartbeat_recv_time: number | null;
+  seconds_since_heartbeat_recv: number | null;
+  degraded_threshold: number;
+  critical_threshold: number;
+}
+
+export interface AccountHealth {
+  health_level: "healthy" | "degraded" | "critical";
+  connection: boolean;
+  api_server: ServerState;
+  quote_server: ServerState;
+  order_server: ServerState;
+  heartbeat: HeartbeatStatus;
+  is_fully_connected: boolean;
+  order_manager: boolean;
+  trade_manager: boolean;
+  position_manager: boolean;
+  market_data_manager: boolean;
+  short_locate_manager: boolean;
+  health_monitor: boolean;
+  market_data_subscriptions_within_limit: boolean;
+}
+
+export interface AccountMetrics {
+  orders: Record<string, unknown>;
+  trades: Record<string, unknown>;
+  positions: Record<string, unknown>;
+  market_data: Record<string, unknown>;
+  short_locates: Record<string, unknown>;
+  overall: {
+    is_running: boolean;
+    uptime_seconds: number;
+    start_time: string | null;
+  };
+}
+
+export interface AccountDiagnostics {
+  health: AccountHealth;
+  metrics: AccountMetrics;
+  error?: string;
+}
+
+export interface HealthResponse {
+  running: boolean;
+  master: AccountDiagnostics | null;
+  followers: Record<string, AccountDiagnostics>;
+}

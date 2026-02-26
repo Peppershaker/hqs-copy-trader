@@ -22,7 +22,7 @@ class MasterConfig(Base):
     username: Mapped[str] = mapped_column(String, nullable=False)
     password: Mapped[str] = mapped_column(String, nullable=False)
     account_id: Mapped[str] = mapped_column(String, nullable=False)
-    locate_routes: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    locate_routes: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
