@@ -156,4 +156,12 @@ export const api = {
       offset: number;
     }>(`/api/audit-log${qs ? `?${qs}` : ""}`);
   },
+  // Env Config
+  getEnvConfig: () =>
+    request<import("./types").EnvConfigResponse>("/api/env-config"),
+  saveEnvConfig: (content: string) =>
+    request<import("./types").EnvConfigResponse>("/api/env-config", {
+      method: "PUT",
+      body: JSON.stringify({ content }),
+    }),
 };

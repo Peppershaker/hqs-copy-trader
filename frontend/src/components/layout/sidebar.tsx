@@ -8,6 +8,7 @@ import {
   ShieldBan,
   Users,
   Activity,
+  FileKey,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
@@ -17,6 +18,7 @@ const navItems = [
   { href: "/management", label: "Management", icon: Users },
   { href: "/blacklist", label: "Blacklist", icon: ShieldBan },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/env-config", label: "Env Config", icon: FileKey },
 ];
 
 export function Sidebar() {

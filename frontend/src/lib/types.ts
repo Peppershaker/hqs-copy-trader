@@ -9,7 +9,7 @@ export interface MasterConfig {
   port: number;
   username: string;
   account_id: string;
-  locate_routes?: Record<string, unknown>[] | null;
+  locate_routes?: Record<string, number> | null;
   updated_at: string;
 }
 
@@ -20,7 +20,7 @@ export interface MasterConfigCreate {
   username: string;
   password: string;
   account_id: string;
-  locate_routes?: Record<string, unknown>[] | null;
+  locate_routes?: Record<string, number> | null;
 }
 
 export interface Follower {
@@ -36,7 +36,7 @@ export interface Follower {
   locate_retry_timeout: number;
   auto_accept_locates: boolean;
   enabled: boolean;
-  locate_routes?: Record<string, unknown>[] | null;
+  locate_routes?: Record<string, number> | null;
   created_at: string;
   updated_at: string;
 }
@@ -55,7 +55,7 @@ export interface FollowerCreate {
   locate_retry_timeout?: number;
   auto_accept_locates?: boolean;
   enabled?: boolean;
-  locate_routes?: Record<string, unknown>[] | null;
+  locate_routes?: Record<string, number> | null;
 }
 
 // --- Position types ---
@@ -214,4 +214,12 @@ export interface QueuedAction {
   symbol: string;
   timestamp: number;
   payload: Record<string, unknown>;
+}
+
+// --- Env Config ---
+
+export interface EnvConfigResponse {
+  content: string;
+  updated_at: string | null;
+  parsed_keys: string[];
 }

@@ -116,6 +116,38 @@ function AccountSelect({
   );
 }
 
+// --- Locate routes toggle editor ---
+function LocateRoutesEditor({
+  routes,
+}: {
+  routes: Record<string, number> | null | undefined;
+}) {
+  if (!routes || Object.keys(routes).length === 0) return null;
+
+  return (
+    <div className="col-span-full space-y-2">
+      <label className="text-xs font-medium text-muted-foreground">
+        Locate Routes{" "}
+        <span className="text-muted-foreground/60">
+          ({Object.keys(routes).length} routes loaded)
+        </span>
+      </label>
+      <div className="flex flex-wrap gap-1.5">
+        {Object.entries(routes).map(([route, type]) => (
+          <span
+            key={route}
+            className="rounded border border-border bg-muted px-2 py-0.5 text-xs font-mono text-muted-foreground"
+            title={`Type ${type}`}
+          >
+            {route}
+            <span className="ml-1 opacity-50">{type}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ============================================================
 // Master Config Form
 // ============================================================
@@ -162,6 +194,7 @@ function MasterConfigForm() {
       username: server.username,
       password: server.password,
       account_id: "",
+      locate_routes: server.locate_routes,
     }));
   };
 
@@ -229,6 +262,7 @@ function MasterConfigForm() {
           value={form.account_id}
           onChange={set("account_id")}
         />
+        <LocateRoutesEditor routes={form.locate_routes} />
       </div>
       {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
       {success && <p className="mt-3 text-sm text-success">Saved!</p>}
@@ -260,6 +294,7 @@ const DEFAULT_FOLLOWER: FollowerCreate = {
   locate_retry_timeout: 15,
   auto_accept_locates: false,
   enabled: true,
+  locate_routes: null,
 };
 
 function FollowerForm({
@@ -292,6 +327,7 @@ function FollowerForm({
         locate_retry_timeout: initial.locate_retry_timeout,
         auto_accept_locates: initial.auto_accept_locates,
         enabled: initial.enabled,
+        locate_routes: initial.locate_routes ?? null,
       };
     }
     return { ...DEFAULT_FOLLOWER };
@@ -310,6 +346,7 @@ function FollowerForm({
       username: server.username,
       password: server.password,
       account_id: "",
+      locate_routes: server.locate_routes,
     }));
   };
 
@@ -400,6 +437,7 @@ function FollowerForm({
           value={form.account_id}
           onChange={set("account_id")}
         />
+        <LocateRoutesEditor routes={form.locate_routes} />
         <Field
           label="Base Multiplier"
           value={form.base_multiplier ?? 1}
