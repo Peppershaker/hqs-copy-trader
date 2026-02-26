@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import pathlib
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -69,6 +71,15 @@ async def lifespan(app: FastAPI):
     buf_handler = LogBufferHandler(log_buffer)
     buf_handler.setFormatter(logging.Formatter(log_fmt))
     logging.getLogger().addHandler(buf_handler)
+
+    # Persist logs to disk (new file per run)
+    log_dir = pathlib.Path(__file__).resolve().parent.parent / "logs"
+    log_dir.mkdir(exist_ok=True)
+    log_file = log_dir / f"app_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(log_level)
+    file_handler.setFormatter(logging.Formatter(log_fmt))
+    logging.getLogger().addHandler(file_handler)
 
     # Initialize database
     await init_db()

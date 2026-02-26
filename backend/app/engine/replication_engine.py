@@ -225,6 +225,11 @@ class ReplicationEngine:
             logger.warning("Master order %s not found for replication", event.order_id)
             return
 
+        # Skip DAS Bridge server-status probe orders (SPY via TESTROUTE)
+        if order.symbol == "SPY" and order.route == "TESTROUTE":
+            logger.debug("Ignoring probe order %s (SPY/TESTROUTE)", event.order_id)
+            return
+
         followers = self._das.follower_clients
         results: dict[str, int | None] = {}
 
@@ -297,6 +302,11 @@ class ReplicationEngine:
         order = master.get_order(event.order_id)
         token = order.token if order else None
         if not token:
+            return
+
+        # Skip DAS Bridge server-status probe orders (SPY via TESTROUTE)
+        if order and order.symbol == "SPY" and order.route == "TESTROUTE":
+            logger.debug("Ignoring probe cancel %s (SPY/TESTROUTE)", event.order_id)
             return
 
         # Queue cancels for disconnected followers
