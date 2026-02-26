@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query
 
-from app.database import Base, close_db, get_engine, init_db
+from app.database import Base, get_engine
 from app.services.log_buffer import log_buffer
 
 router = APIRouter(prefix="/api/dev", tags=["dev"])

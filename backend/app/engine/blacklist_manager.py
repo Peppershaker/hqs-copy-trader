@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import logging
 
+from sqlalchemy import delete, select
+
 from app.database import get_session_factory
 from app.models.blacklist import BlacklistEntry
-from sqlalchemy import delete, select
 
 logger = logging.getLogger(__name__)
 

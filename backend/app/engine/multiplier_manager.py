@@ -13,10 +13,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from sqlalchemy import select
+
 from app.database import get_session_factory
 from app.models.follower import Follower
 from app.models.symbol_multiplier import SymbolMultiplier
-from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 

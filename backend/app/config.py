@@ -100,20 +100,26 @@ def reset_config() -> None:
     _config = None
 
 
+def parse_env_text(content: str) -> dict[str, str]:
+    """Parse raw .env text into a key→value dict (comments and blanks excluded)."""
+    import io
+
+    from dotenv import dotenv_values
+
+    return {
+        k: v
+        for k, v in dotenv_values(stream=io.StringIO(content)).items()
+        if k and v is not None
+    }
+
+
 def apply_env_text(content: str) -> dict[str, str]:
     """Parse raw .env text, push every key into os.environ, reset the config cache.
 
     Returns the dict of key→value pairs that were parsed (comments and blanks excluded).
     """
-    import io
-
-    from dotenv import dotenv_values
-
-    parsed: dict[str, str] = {}
-    for key, value in dotenv_values(stream=io.StringIO(content)).items():
-        if key and value is not None:
-            os.environ[key] = value
-            parsed[key] = value
-
+    parsed = parse_env_text(content)
+    for key, value in parsed.items():
+        os.environ[key] = value
     reset_config()
     return parsed

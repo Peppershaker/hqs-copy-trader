@@ -9,11 +9,13 @@ import { useState } from "react";
 export function ConnectionStatus() {
   const systemStatus = useAppStore((s) => s.systemStatus);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const isRunning = systemStatus?.running ?? false;
 
   const handleToggle = async () => {
     setLoading(true);
+    setError(null);
     try {
       if (isRunning) {
         await api.stopSystem();
@@ -21,6 +23,8 @@ export function ConnectionStatus() {
         await api.startSystem();
       }
     } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to toggle system";
+      setError(msg);
       console.error("Failed to toggle system:", e);
     } finally {
       setLoading(false);
@@ -28,7 +32,7 @@ export function ConnectionStatus() {
   };
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-col items-end gap-1">
       <button
         onClick={handleToggle}
         disabled={loading}
@@ -52,6 +56,9 @@ export function ConnectionStatus() {
           </>
         )}
       </button>
+      {error && (
+        <p className="max-w-xs text-right text-xs text-destructive">{error}</p>
+      )}
     </div>
   );
 }

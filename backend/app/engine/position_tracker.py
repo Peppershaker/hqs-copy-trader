@@ -10,9 +10,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from das_bridge import DASClient
+
 from app.engine.multiplier_manager import MultiplierManager
 from app.services.notification_service import NotificationService
-from das_bridge import DASClient
 
 logger = logging.getLogger(__name__)
 

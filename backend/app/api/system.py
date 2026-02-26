@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -91,33 +91,44 @@ async def get_health() -> dict[str, Any]:
 async def start_system() -> dict[str, Any]:
     """Start all DAS connections and the replication engine."""
     if _get_das_service is None or _get_engine is None:
-        return {"error": "Not initialized"}
+        raise HTTPException(status_code=503, detail="Server not initialized")
 
     das = _get_das_service()
     engine = _get_engine()
 
-    # Load configs from DB
     from sqlalchemy import select as sa_select
 
+    from app.config import apply_env_text, get_config
     from app.database import get_session_factory
+    from app.models.env_config import EnvConfig
     from app.models.follower import Follower
     from app.models.master import MasterConfig
 
     factory = get_session_factory()
     async with factory() as session:
+        # Re-apply env config from DB
+        env_result = await session.execute(sa_select(EnvConfig).where(EnvConfig.id == 1))
+        env_row = env_result.scalar_one_or_none()
+        if env_row and env_row.content.strip():
+            apply_env_text(env_row.content)
+
+        # Build broker_id → server config lookup from DAS_SERVERS
+        das_server_map = {s.broker_id.lower(): s for s in get_config().parsed_das_servers}
+
         # Load master
         result = await session.execute(sa_select(MasterConfig).where(MasterConfig.id == 1))
         master = result.scalar_one_or_none()
         if not master:
-            return {"error": "Master account not configured"}
+            raise HTTPException(status_code=400, detail="Master account not configured")
 
+        server = das_server_map.get(master.broker_id.lower())
         await das.configure_master(
             {
                 "broker_id": master.broker_id,
-                "host": master.host,
-                "port": master.port,
-                "username": master.username,
-                "password": master.password,
+                "host": server.host if server else master.host,
+                "port": server.port if server else master.port,
+                "username": server.username if server else master.username,
+                "password": server.password if server else master.password,
                 "account_id": master.account_id,
             }
         )
@@ -126,14 +137,15 @@ async def start_system() -> dict[str, Any]:
         result = await session.execute(sa_select(Follower).where(Follower.enabled.is_(True)))
         follower_configs: dict[str, dict[str, Any]] = {}
         for f in result.scalars():
+            fserver = das_server_map.get(f.broker_id.lower())
             await das.configure_follower(
                 f.id,
                 {
                     "broker_id": f.broker_id,
-                    "host": f.host,
-                    "port": f.port,
-                    "username": f.username,
-                    "password": f.password,
+                    "host": fserver.host if fserver else f.host,
+                    "port": fserver.port if fserver else f.port,
+                    "username": fserver.username if fserver else f.username,
+                    "password": fserver.password if fserver else f.password,
                     "account_id": f.account_id,
                 },
             )
@@ -143,8 +155,11 @@ async def start_system() -> dict[str, Any]:
                 "auto_accept_locates": f.auto_accept_locates,
             }
 
-    await das.start()
-    await engine.start(follower_configs=follower_configs)
+    try:
+        await das.start()
+        await engine.start(follower_configs=follower_configs)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
     return {"status": "started", **das.get_status()}
 
@@ -153,7 +168,7 @@ async def start_system() -> dict[str, Any]:
 async def stop_system() -> dict[str, str]:
     """Stop all connections and the replication engine."""
     if _get_das_service is None or _get_engine is None:
-        return {"error": "Not initialized"}
+        raise HTTPException(status_code=503, detail="Server not initialized")
 
     engine = _get_engine()
     das = _get_das_service()
