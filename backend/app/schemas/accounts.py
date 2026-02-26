@@ -36,8 +36,8 @@ class MasterConfigResponse(BaseModel):
 
 
 class FollowerCreate(BaseModel):
-    id: str = Field(description="Unique follower identifier (e.g., 'acct-cobra-2')")
-    name: str = Field(description="Display name")
+    id: str = Field(min_length=1, description="Unique follower identifier (e.g., 'acct-cobra-2')")
+    name: str = Field(min_length=1, description="Display name")
     broker_id: str
     host: str
     port: int = Field(ge=1, le=65535)

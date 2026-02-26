@@ -507,7 +507,11 @@ function FollowerCard({
   onEdit: () => void;
   onReload: () => void;
 }) {
+  const systemStatus = useAppStore((s) => s.systemStatus);
+  const connected = systemStatus?.followers?.[follower.id]?.connected ?? false;
+  const systemRunning = systemStatus?.running ?? false;
   const [deleting, setDeleting] = useState(false);
+  const [toggling, setToggling] = useState(false);
 
   const handleDelete = async () => {
     if (!confirm(`Delete follower "${follower.name}"?`)) return;
@@ -523,43 +527,68 @@ function FollowerCard({
   };
 
   const handleToggle = async () => {
+    setToggling(true);
     try {
       await api.toggleFollower(follower.id);
       onReload();
     } catch {
       alert("Failed to toggle follower");
+    } finally {
+      setToggling(false);
     }
   };
+
+  // Status: connected (green), enabled but not connected (yellow), disabled (gray)
+  const statusColor = connected
+    ? "bg-success"
+    : follower.enabled
+      ? "bg-warning"
+      : "bg-muted-foreground";
+
+  const statusText = connected
+    ? "Connected"
+    : follower.enabled
+      ? systemRunning
+        ? "Disconnected"
+        : "Enabled · Not running"
+      : "Disabled";
 
   return (
     <div className="flex items-center justify-between rounded-lg border border-border bg-card p-4">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span
-            className={`h-2 w-2 rounded-full ${follower.enabled ? "bg-success" : "bg-muted-foreground"}`}
-          />
+          <span className={`h-2.5 w-2.5 rounded-full ${statusColor}`} />
           <span className="font-medium">{follower.name}</span>
-          <span className="text-xs text-muted-foreground">({follower.id})</span>
+          {follower.id && (
+            <span className="text-xs text-muted-foreground font-mono">
+              {follower.id}
+            </span>
+          )}
+          <span className="text-xs text-muted-foreground">·</span>
+          <span className="text-xs text-muted-foreground">{statusText}</span>
         </div>
-        <div className="mt-1 flex gap-4 text-xs text-muted-foreground">
+        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <span>Broker: {follower.broker_id.toUpperCase()}</span>
+          <span>Account: {follower.account_id}</span>
+          <span>User: {follower.username}</span>
+          <span>Multiplier: {follower.base_multiplier}×</span>
+          <span>Locate Δ: ${follower.max_locate_price_delta}</span>
           <span>
             {follower.host}:{follower.port}
           </span>
-          <span>Account: {follower.account_id}</span>
-          <span>Multiplier: {follower.base_multiplier}×</span>
-          <span>Locate Δ: ${follower.max_locate_price_delta}</span>
         </div>
       </div>
       <div className="flex gap-2">
         <button
           onClick={handleToggle}
-          className={`rounded-md px-3 py-1.5 text-xs font-medium ${
+          disabled={toggling}
+          className={`rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
             follower.enabled
               ? "bg-success/20 text-success hover:bg-success/30"
               : "bg-muted text-muted-foreground hover:bg-muted/80"
           }`}
         >
-          {follower.enabled ? "Enabled" : "Disabled"}
+          {toggling ? "..." : follower.enabled ? "Enabled" : "Disabled"}
         </button>
         <button
           onClick={onEdit}
