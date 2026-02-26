@@ -103,6 +103,8 @@ function LevelBadge({ level }: { level: string }) {
 // ============================================================
 // Log Viewer Panel
 // ============================================================
+const DEFAULT_OMIT_PATTERNS = ["QuoteUpdated", "Heartbeat", "ClientResponse"];
+
 function LogViewerPanel() {
   const wsLogEntries = useAppStore((s) => s.logEntries);
   const clearWsLogs = useAppStore((s) => s.clearLogEntries);
@@ -111,6 +113,11 @@ function LogViewerPanel() {
   const [activeSource, setActiveSource] = useState<"app" | "das_bridge">(
     "app",
   );
+
+  // Message omit filters (patterns whose lines are hidden)
+  const [omitPatterns, setOmitPatterns] = useState<string[]>(DEFAULT_OMIT_PATTERNS);
+  const [showFilterConfig, setShowFilterConfig] = useState(false);
+  const [newPattern, setNewPattern] = useState("");
 
   // Initial load from REST (backfill entries from before WS connected)
   const [backfill, setBackfill] = useState<LogEntry[]>([]);
@@ -141,7 +148,9 @@ function LogViewerPanel() {
   })();
 
   const filteredEntries = allEntries.filter(
-    (e) => e.source === activeSource,
+    (e) =>
+      e.source === activeSource &&
+      !omitPatterns.some((pat) => pat && e.message.includes(pat)),
   );
 
   // Auto-scroll
@@ -222,6 +231,12 @@ function LogViewerPanel() {
           >
             Clear
           </button>
+          <button
+            onClick={() => setShowFilterConfig((v) => !v)}
+            className={`text-xs ${showFilterConfig ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Filter{omitPatterns.length > 0 && ` (${omitPatterns.length})`}
+          </button>
           <label className="flex items-center gap-1 text-xs text-muted-foreground">
             <input
               type="checkbox"
@@ -233,6 +248,55 @@ function LogViewerPanel() {
           </label>
         </div>
       </div>
+
+      {/* Filter config */}
+      {showFilterConfig && (
+        <div className="border-b border-border px-4 py-2 space-y-1.5 bg-muted/20">
+          <div className="flex flex-wrap gap-1.5">
+            {omitPatterns.map((pat) => (
+              <span
+                key={pat}
+                className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-mono"
+              >
+                {pat}
+                <button
+                  onClick={() => setOmitPatterns((prev) => prev.filter((p) => p !== pat))}
+                  className="text-muted-foreground hover:text-destructive ml-0.5"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {omitPatterns.length === 0 && (
+              <span className="text-xs text-muted-foreground">No filters active</span>
+            )}
+          </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const v = newPattern.trim();
+              if (v && !omitPatterns.includes(v)) {
+                setOmitPatterns((prev) => [...prev, v]);
+              }
+              setNewPattern("");
+            }}
+            className="flex items-center gap-2"
+          >
+            <input
+              value={newPattern}
+              onChange={(e) => setNewPattern(e.target.value)}
+              placeholder="Add pattern to omit…"
+              className="rounded-md border border-border bg-background px-2 py-1 text-xs font-mono w-48 focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <button
+              type="submit"
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Add
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* Log entries */}
       <div

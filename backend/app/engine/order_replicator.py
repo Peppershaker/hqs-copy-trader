@@ -5,7 +5,6 @@ Handles replicating order actions (submit, cancel, replace) from master to follo
 
 from __future__ import annotations
 
-import itertools
 import logging
 from decimal import Decimal
 from typing import Any
@@ -49,8 +48,6 @@ class OrderReplicator:
         self._order_map: dict[int, dict[str, int]] = {}
         # follower_order_token → master_order_token (reverse lookup)
         self._reverse_map: dict[int, int] = {}
-        # Token counter for generating unique follower order tokens
-        self._token_counter = itertools.count(100_000)
 
     def _scale_quantity(self, quantity: int, follower_id: str, symbol: str) -> int:
         """Scale a quantity by the effective multiplier, rounded to int."""
@@ -79,9 +76,29 @@ class OrderReplicator:
         try:
             result = await self._submit_matching_order(follower_client, master_order, scaled_qty)
 
+            if result and result.is_rejected:
+                await self._audit.error(
+                    "order",
+                    f"Order rejected for {symbol} on {follower_id}: {result.message}",
+                    follower_id=follower_id,
+                    symbol=symbol,
+                )
+                await self._notifier.broadcast(
+                    "alert",
+                    {
+                        "level": "error",
+                        "message": (
+                            f"Order rejected for {symbol} on {follower_id}: {result.message}"
+                        ),
+                    },
+                )
+                return None
+
             if result and result.token:
                 # Track mapping
                 master_token = master_order.token
+                if master_token is None:
+                    return result.token
                 if master_token not in self._order_map:
                     self._order_map[master_token] = {}
                 self._order_map[master_token][follower_id] = result.token
@@ -124,17 +141,18 @@ class OrderReplicator:
         master_order: BaseOrder,
         quantity: int,
     ) -> Any:
-        """Submit an order on the follower matching the master order type."""
+        """Submit an order on the follower matching the master order type.
+
+        Token generation is handled by das-bridge's OrderManager.
+        """
         symbol = master_order.symbol
         side = master_order.side
-        token = next(self._token_counter)
 
         if isinstance(master_order, MarketOrder):
             return await client.place_market_order(
                 symbol=symbol,
                 quantity=quantity,
                 side=side,
-                token=token,
             )
         elif isinstance(master_order, LimitOrder):
             return await client.place_limit_order(
@@ -142,12 +160,10 @@ class OrderReplicator:
                 quantity=quantity,
                 side=side,
                 price=master_order.price,
-                token=token,
             )
         elif isinstance(master_order, StopLimitOrder):
             # StopLimit must be checked before Stop (inheritance)
             order = StopLimitOrder(
-                token=token,
                 symbol=symbol,
                 quantity=quantity,
                 side=side,
@@ -158,7 +174,6 @@ class OrderReplicator:
             return await client.submit_order(order)
         elif isinstance(master_order, StopOrder):
             order = StopOrder(
-                token=token,
                 symbol=symbol,
                 quantity=quantity,
                 side=side,
@@ -168,7 +183,6 @@ class OrderReplicator:
             return await client.submit_order(order)
         elif isinstance(master_order, TrailingStopOrder):
             order = TrailingStopOrder(
-                token=token,
                 symbol=symbol,
                 quantity=quantity,
                 side=side,
