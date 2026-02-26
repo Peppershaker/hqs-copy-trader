@@ -5,6 +5,7 @@ import type {
   Alert,
   Follower,
   LocatePrompt,
+  LogEntry,
   MasterConfig,
   OrderInfo,
   Position,
@@ -50,6 +51,11 @@ interface AppState {
   /** follower id that just reconnected with pending actions — triggers dialog */
   replayFollowerId: string | null;
   setReplayFollowerId: (id: string | null) => void;
+
+  // Dev log entries (streamed via WebSocket)
+  logEntries: LogEntry[];
+  appendLogEntries: (entries: LogEntry[]) => void;
+  clearLogEntries: () => void;
 
   // Update from WebSocket state_update
   handleStateUpdate: (data: StateUpdate) => void;
@@ -107,6 +113,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     }),
   replayFollowerId: null,
   setReplayFollowerId: (id) => set({ replayFollowerId: id }),
+
+  logEntries: [],
+  appendLogEntries: (entries) =>
+    set((s) => ({
+      logEntries: [...s.logEntries, ...entries].slice(-2000),
+    })),
+  clearLogEntries: () => set({ logEntries: [] }),
 
   handleStateUpdate: (data) => {
     set({
@@ -238,6 +251,12 @@ export const useAppStore = create<AppState>((set, get) => ({
           data,
         });
         state.clearQueuedActions(String(data.follower_id));
+        break;
+
+      case "log_entries":
+        state.appendLogEntries(
+          (data.entries ?? []) as unknown as LogEntry[],
+        );
         break;
     }
   },

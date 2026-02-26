@@ -6,6 +6,7 @@ In production, serves the Next.js static build from /static.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -16,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 # Route modules
 from app.api import (
     blacklist,
+    dev,
     env_config,
     followers,
     locates,
@@ -30,6 +32,7 @@ from app.database import close_db, init_db
 from app.engine.replication_engine import ReplicationEngine
 from app.services.audit_service import AuditService
 from app.services.das_service import DASService
+from app.services.log_buffer import LogBufferHandler, log_buffer
 from app.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
@@ -41,16 +44,31 @@ _audit = AuditService()
 _engine = ReplicationEngine(_das_service, _notifier, _audit)
 
 
+async def _log_broadcast_loop() -> None:
+    """Periodically drain new log entries and broadcast them via WebSocket."""
+    last_seq = log_buffer.latest_seq
+    while True:
+        await asyncio.sleep(2)
+        new = log_buffer.get_new_entries(since_seq=last_seq)
+        if new and _notifier.client_count > 0:
+            last_seq = new[-1]["seq"]
+            await _notifier.broadcast("log_entries", {"entries": new})
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: init DB on startup, stop services on shutdown."""
     config = get_config()
 
     # Configure logging
-    logging.basicConfig(
-        level=getattr(logging, config.log_level.upper(), logging.INFO),
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    )
+    log_level = getattr(logging, config.log_level.upper(), logging.INFO)
+    log_fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    logging.basicConfig(level=log_level, format=log_fmt)
+
+    # Attach in-memory log buffer handler to root logger
+    buf_handler = LogBufferHandler(log_buffer)
+    buf_handler.setFormatter(logging.Formatter(log_fmt))
+    logging.getLogger().addHandler(buf_handler)
 
     # Initialize database
     await init_db()
@@ -88,10 +106,14 @@ async def lifespan(app: FastAPI):
         config.app_port,
     )
 
+    # Start background log broadcaster
+    log_task = asyncio.create_task(_log_broadcast_loop())
+
     yield
 
     # Shutdown
     logger.info("Shutting down...")
+    log_task.cancel()
     await _engine.stop()
     await _das_service.stop()
     await close_db()
@@ -127,6 +149,7 @@ def create_app() -> FastAPI:
     app.include_router(queue.router)
     app.include_router(system.router)
     app.include_router(websocket.router)
+    app.include_router(dev.router)
 
     # Serve static frontend (production)
     static_dir = config.resolved_static_dir

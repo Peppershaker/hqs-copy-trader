@@ -134,7 +134,19 @@ export type WSMessageType =
   | "buying_power_warning"
   | "action_queued"
   | "queued_actions_available"
-  | "actions_replayed";
+  | "actions_replayed"
+  | "log_entries";
+
+// --- Log Buffer Entry ---
+
+export interface LogEntry {
+  seq: number;
+  timestamp: number;
+  level: string;
+  source: "app" | "das_bridge";
+  logger: string;
+  message: string;
+}
 
 export interface WSMessage {
   type: WSMessageType;

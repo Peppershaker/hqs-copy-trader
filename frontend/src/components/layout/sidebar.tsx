@@ -10,6 +10,7 @@ import {
   Activity,
   FileKey,
   HeartPulse,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/health", label: "System Health", icon: HeartPulse },
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/env-config", label: "Env Config", icon: FileKey },
+  { href: "/dev", label: "Dev Tools", icon: Wrench },
 ];
 
 export function Sidebar() {

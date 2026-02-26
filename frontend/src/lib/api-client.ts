@@ -168,4 +168,23 @@ export const api = {
   // Health / Diagnostics
   getHealth: () =>
     request<import("./types").HealthResponse>("/api/health"),
+
+  // Dev
+  resetDatabase: () =>
+    request<{ status: string; message: string }>("/api/dev/reset-db", {
+      method: "POST",
+    }),
+  getDevLogs: (params?: { source?: string; since?: number; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.source) query.set("source", params.source);
+    if (params?.since) query.set("since", String(params.since));
+    if (params?.limit) query.set("limit", String(params.limit));
+    const qs = query.toString();
+    return request<{
+      entries: import("./types").LogEntry[];
+      latest_seq: number;
+    }>(`/api/dev/logs${qs ? `?${qs}` : ""}`);
+  },
+  clearDevLogs: () =>
+    request<{ status: string }>("/api/dev/logs", { method: "DELETE" }),
 };
