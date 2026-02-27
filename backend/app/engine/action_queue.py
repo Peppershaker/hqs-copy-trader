@@ -9,13 +9,13 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import asdict, dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class QueuedActionType(str, Enum):
+class QueuedActionType(StrEnum):
     """Types of actions that can be queued for disconnected followers."""
     ORDER_SUBMIT = "order_submit"
     ORDER_CANCEL = "order_cancel"

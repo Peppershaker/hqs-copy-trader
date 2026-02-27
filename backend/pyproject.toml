@@ -64,6 +64,8 @@ blank = true
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
 reportMissingTypeStubs = false
+reportUnknownParameterType = "error"
+reportUnknownVariableType = "error"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

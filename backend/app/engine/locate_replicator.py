@@ -205,7 +205,7 @@ class LocateReplicator:
             await self._update_locate_status(locate_map_id, "failed")
             return
         try:
-            result = await follower_client.accept_locate_offer(offer)  # noqa: F841
+            await follower_client.accept_locate_offer(offer)
             await self._update_locate_status(locate_map_id, "accepted")
             logger.info(
                 "Auto-accepted locate for %s on %s",

@@ -62,7 +62,9 @@ async def init_db() -> None:
     engine = get_engine()
     async with engine.begin() as conn:
         # Import all models so they register with Base.metadata
-        import app.models  # noqa: F401
+        import app.models as _models  # noqa: F401
+
+        del _models
 
         await conn.run_sync(Base.metadata.create_all)
 

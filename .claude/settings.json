@@ -21,7 +21,8 @@
       "Bash(python -m ruff check app/ --select E501 --output-format json)",
       "Bash(python -c \":*)",
       "Bash(python -m ruff check app/ --select D,E501 --output-format json)",
-      "Bash(python -m ruff check --select D,E501 --config 'lint.pydocstyle.convention = \"\"google\"\"' app/schemas/accounts.py app/schemas/blacklist.py app/schemas/locates.py app/schemas/multipliers.py app/schemas/orders.py app/services/das_service.py app/services/log_buffer.py app/services/notification_service.py)"
+      "Bash(python -m ruff check --select D,E501 --config 'lint.pydocstyle.convention = \"\"google\"\"' app/schemas/accounts.py app/schemas/blacklist.py app/schemas/locates.py app/schemas/multipliers.py app/schemas/orders.py app/services/das_service.py app/services/log_buffer.py app/services/notification_service.py)",
+      "Bash(ruff check app/)"
     ]
   }
 }

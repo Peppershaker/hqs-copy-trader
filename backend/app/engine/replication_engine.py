@@ -10,7 +10,7 @@ import asyncio
 import logging
 from collections.abc import Callable, Coroutine
 from decimal import Decimal
-from typing import Any, TypeVar
+from typing import Any
 
 from das_bridge import DASClient
 from das_bridge.domain.events.order_events import (
@@ -36,9 +36,6 @@ from app.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
 
-_E = TypeVar("_E")
-
-
 def _log_task_exception(task: asyncio.Task[Any]) -> None:
     """Log unhandled exceptions from fire-and-forget event handlers."""
     if task.cancelled():
@@ -52,10 +49,12 @@ def _log_task_exception(task: asyncio.Task[Any]) -> None:
         )
 
 
-def _fire(coro_fn: Callable[[_E], Coroutine[Any, Any, None]]) -> Callable[[_E], None]:
+def _fire[E](
+    coro_fn: Callable[[E], Coroutine[Any, Any, None]],
+) -> Callable[[E], None]:
     """Wrap an async handler so it can be passed to ``DASClient.on()``."""
 
-    def wrapper(event: _E) -> None:
+    def wrapper(event: E) -> None:
         task = asyncio.ensure_future(coro_fn(event))
         task.add_done_callback(_log_task_exception)
 
@@ -114,6 +113,11 @@ class ReplicationEngine:
 
         # Reconnect detection: track previous ``is_running`` per follower
         self._prev_follower_connected: dict[str, bool] = {}
+
+    @property
+    def follower_configs(self) -> dict[str, dict[str, Any]]:
+        """Return the cached follower configurations."""
+        return self._follower_configs
 
     @property
     def action_queue(self) -> ActionQueue:

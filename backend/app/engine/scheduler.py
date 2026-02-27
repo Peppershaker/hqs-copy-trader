@@ -64,7 +64,7 @@ async def daily_restart_loop(
         logger.info("Starting daily restart...")
         try:
             # Capture follower configs before stopping
-            follower_configs = engine._follower_configs
+            follower_configs = engine.follower_configs
 
             await engine.stop()
             await das_service.stop()
