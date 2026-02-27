@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Read(//home/victor/code/das-bridge/**)",
-      "Read(//home/victor/code/**)"
+      "Read(//home/victor/code/**)",
+      "Bash(find /home/victor/code/das_auto_order/backend/app/api -name \"*.py\" -type f -exec grep -l \"audit\" {} ;)",
+      "Bash(python3 -c \"import das_bridge; print\\(das_bridge.__version__\\)\")",
+      "Bash(grep -n \"\\\\[order\\\\]\\\\|\\\\[system\\\\]\" /home/victor/code/das_auto_order/backend/app/engine/*.py /home/victor/code/das_auto_order/backend/app/services/*.py)"
     ]
   }
 }

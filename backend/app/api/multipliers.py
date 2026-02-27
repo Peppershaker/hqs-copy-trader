@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.symbol_multiplier import SymbolMultiplier
 from app.schemas.multipliers import SymbolMultiplierResponse, SymbolMultiplierUpdate
+
+_TICKER_RE = re.compile(r"^[A-Za-z]{1,5}$")
 
 router = APIRouter(prefix="/api/multipliers", tags=["multipliers"])
 
@@ -38,7 +42,9 @@ async def set_multiplier(
     db: AsyncSession = Depends(get_db),
 ):
     """Set or update a per-symbol multiplier override."""
-    symbol = symbol.upper()
+    symbol = symbol.strip().upper()
+    if not _TICKER_RE.match(symbol):
+        raise HTTPException(422, "Symbol must be 1-5 letters only")
     result = await db.execute(
         select(SymbolMultiplier).where(
             SymbolMultiplier.follower_id == follower_id,
@@ -73,7 +79,9 @@ async def remove_multiplier(
     db: AsyncSession = Depends(get_db),
 ):
     """Remove a per-symbol multiplier override (revert to base multiplier)."""
-    symbol = symbol.upper()
+    symbol = symbol.strip().upper()
+    if not _TICKER_RE.match(symbol):
+        raise HTTPException(422, "Symbol must be 1-5 letters only")
     result = await db.execute(
         select(SymbolMultiplier).where(
             SymbolMultiplier.follower_id == follower_id,

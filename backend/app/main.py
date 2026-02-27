@@ -32,7 +32,7 @@ from app.api import (
 from app.config import apply_env_text, get_config
 from app.database import close_db, init_db
 from app.engine.replication_engine import ReplicationEngine
-from app.services.audit_service import AuditService
+from app.engine.scheduler import daily_restart_loop
 from app.services.das_service import DASService
 from app.services.log_buffer import LogBufferHandler, log_buffer
 from app.services.notification_service import NotificationService
@@ -42,8 +42,7 @@ logger = logging.getLogger(__name__)
 # --- Singletons (created once at startup) ---
 _das_service = DASService()
 _notifier = NotificationService()
-_audit = AuditService()
-_engine = ReplicationEngine(_das_service, _notifier, _audit)
+_engine = ReplicationEngine(_das_service, _notifier)
 
 
 async def _log_broadcast_loop() -> None:
@@ -117,13 +116,15 @@ async def lifespan(app: FastAPI):
         config.app_port,
     )
 
-    # Start background log broadcaster
+    # Start background tasks
     log_task = asyncio.create_task(_log_broadcast_loop())
+    restart_task = asyncio.create_task(daily_restart_loop(_das_service, _engine))
 
     yield
 
     # Shutdown
     logger.info("Shutting down...")
+    restart_task.cancel()
     log_task.cancel()
     await _engine.stop()
     await _das_service.stop()

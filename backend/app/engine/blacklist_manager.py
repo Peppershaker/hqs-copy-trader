@@ -28,7 +28,7 @@ class BlacklistManager:
         async with factory() as session:
             result = await session.execute(select(BlacklistEntry))
             for entry in result.scalars():
-                self._blacklist[(entry.follower_id, entry.symbol)] = (
+                self._blacklist[(entry.follower_id, entry.symbol.upper())] = (
                     entry.reason or "unknown"
                 )
         logger.info("Loaded %d blacklist entries", len(self._blacklist))
@@ -108,7 +108,7 @@ class BlacklistManager:
             if not entry:
                 return False
 
-            key = (entry.follower_id, entry.symbol)
+            key = (entry.follower_id, entry.symbol.upper())
             self._blacklist.pop(key, None)
             await session.delete(entry)
             await session.commit()

@@ -1,17 +1,13 @@
-"""System management routes (start, stop, status, audit log)."""
+"""System management routes (start, stop, status)."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import desc, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, HTTPException
 
-from app.database import get_db
 from app.engine.replication_engine import ReplicationEngine
-from app.models.audit_log import AuditLog
 from app.services.das_service import DASService
 
 router = APIRouter(prefix="/api", tags=["system"])
@@ -177,48 +173,3 @@ async def stop_system() -> dict[str, str]:
     await das.stop()
 
     return {"status": "stopped"}
-
-
-@router.get("/audit-log")
-async def get_audit_log(
-    limit: int = Query(100, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
-    category: str | None = Query(None),
-    level: str | None = Query(None),
-    follower_id: str | None = Query(None),
-    symbol: str | None = Query(None),
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """Retrieve paginated audit log entries."""
-    query = select(AuditLog).order_by(desc(AuditLog.timestamp))
-
-    if category:
-        query = query.where(AuditLog.category == category)
-    if level:
-        query = query.where(AuditLog.level == level)
-    if follower_id:
-        query = query.where(AuditLog.follower_id == follower_id)
-    if symbol:
-        query = query.where(AuditLog.symbol == symbol.upper())
-
-    query = query.offset(offset).limit(limit)
-    result = await db.execute(query)
-    entries = result.scalars().all()
-
-    return {
-        "entries": [
-            {
-                "id": e.id,
-                "timestamp": e.timestamp.isoformat() if e.timestamp else None,
-                "level": e.level,
-                "category": e.category,
-                "follower_id": e.follower_id,
-                "symbol": e.symbol,
-                "message": e.message,
-                "details": e.details,
-            }
-            for e in entries
-        ],
-        "limit": limit,
-        "offset": offset,
-    }

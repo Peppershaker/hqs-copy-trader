@@ -21,7 +21,6 @@ from das_bridge.domain.orders import (
 
 from app.engine.blacklist_manager import BlacklistManager
 from app.engine.multiplier_manager import MultiplierManager
-from app.services.audit_service import AuditService
 from app.services.notification_service import NotificationService
 
 if TYPE_CHECKING:
@@ -40,13 +39,11 @@ class OrderReplicator:
         das_service: DASService,
         multiplier_mgr: MultiplierManager,
         blacklist_mgr: BlacklistManager,
-        audit: AuditService,
         notifier: NotificationService,
     ) -> None:
         self._das = das_service
         self._multiplier_mgr = multiplier_mgr
         self._blacklist_mgr = blacklist_mgr
-        self._audit = audit
         self._notifier = notifier
 
         # master_order_id → {follower_id: follower_order_id}
@@ -57,15 +54,19 @@ class OrderReplicator:
     def _scale_quantity(self, quantity: int, follower_id: str, symbol: str) -> int:
         """Scale a quantity by the effective multiplier, rounded to int."""
         multiplier = self._multiplier_mgr.get_effective(follower_id, symbol)
+        source = self._multiplier_mgr.get_source(follower_id, symbol)
         scaled = round(quantity * multiplier)
-        return max(scaled, 1)  # Never submit 0-share orders
+        result = max(scaled, 1)  # Never submit 0-share orders
+        logger.debug(
+            "Scale qty: follower=%s symbol=%s master_qty=%d "
+            "multiplier=%.4f source=%s -> %d",
+            follower_id, symbol, quantity, multiplier, source, result,
+        )
+        return result
 
     def _get_follower(self, follower_id: str) -> DASClient | None:
         """Get a connected follower client, or None."""
-        client = self._das.get_follower_client(follower_id)
-        if client and client.is_running:
-            return client
-        return None
+        return self._das.get_connected_follower(follower_id)
 
     async def replicate_order(
         self,
@@ -89,15 +90,19 @@ class OrderReplicator:
         symbol = master_order.symbol
         scaled_qty = self._scale_quantity(master_order.quantity, follower_id, symbol)
 
+        logger.debug(
+            "Submitting %s to %s: symbol=%s side=%s qty=%d",
+            type(master_order).__name__, follower_id,
+            symbol, master_order.side, scaled_qty,
+        )
+
         try:
             result = await self._submit_matching_order(client, master_order, scaled_qty)
 
             if result and result.is_rejected:
-                await self._audit.error(
-                    "order",
-                    f"Order rejected for {symbol} on {follower_id}: {result.message}",
-                    follower_id=follower_id,
-                    symbol=symbol,
+                logger.error(
+                    "Order rejected for %s on %s: %s",
+                    symbol, follower_id, result.message,
                 )
                 await self._notifier.broadcast(
                     "alert",
@@ -118,26 +123,19 @@ class OrderReplicator:
                 self._order_map[master_order_id][follower_id] = follower_order_id
                 self._reverse_map[follower_order_id] = master_order_id
 
-                await self._audit.info(
-                    "order",
-                    f"Replicated {symbol} order to {follower_id}: "
-                    f"qty={scaled_qty} (master={master_order.quantity})",
-                    follower_id=follower_id,
-                    symbol=symbol,
-                    details={
-                        "master_order_id": master_order_id,
-                        "follower_order_id": follower_order_id,
-                        "multiplier": self._multiplier_mgr.get_effective(follower_id, symbol),
-                    },
+                logger.info(
+                    "Replicated %s order to %s: qty=%d (master=%d) "
+                    "master_oid=%s follower_oid=%s multiplier=%.4f",
+                    symbol, follower_id, scaled_qty, master_order.quantity,
+                    master_order_id, follower_order_id,
+                    self._multiplier_mgr.get_effective(follower_id, symbol),
                 )
                 return follower_order_id
 
         except Exception as e:
-            await self._audit.error(
-                "order",
-                f"Failed to replicate {symbol} order to {follower_id}: {e}",
-                follower_id=follower_id,
-                symbol=symbol,
+            logger.error(
+                "Failed to replicate %s order to %s: %s",
+                symbol, follower_id, e,
             )
             await self._notifier.broadcast(
                 "alert",
@@ -235,18 +233,15 @@ class OrderReplicator:
                 if success:
                     order = client.get_order(follower_order_id)
                     symbol = order.symbol if order else "UNKNOWN"
-                    await self._audit.info(
-                        "order",
-                        f"Cancelled {symbol} order on {follower_id}",
-                        follower_id=follower_id,
-                        symbol=symbol,
+                    logger.info(
+                        "Cancelled %s order on %s (follower_oid=%s)",
+                        symbol, follower_id, follower_order_id,
                     )
             except Exception as e:
                 results[follower_id] = False
-                await self._audit.error(
-                    "order",
-                    f"Failed to cancel order on {follower_id}: {e}",
-                    follower_id=follower_id,
+                logger.error(
+                    "Failed to cancel order on %s: %s",
+                    follower_id, e,
                 )
 
         return results
@@ -290,19 +285,15 @@ class OrderReplicator:
                 results[follower_id] = success
 
                 if success:
-                    await self._audit.info(
-                        "order",
-                        f"Replaced {order.symbol} order on {follower_id}: "
-                        f"qty={scaled_qty}, price={new_price}",
-                        follower_id=follower_id,
-                        symbol=order.symbol,
+                    logger.info(
+                        "Replaced %s order on %s: qty=%d price=%s",
+                        order.symbol, follower_id, scaled_qty, new_price,
                     )
             except Exception as e:
                 results[follower_id] = False
-                await self._audit.error(
-                    "order",
-                    f"Failed to replace order on {follower_id}: {e}",
-                    follower_id=follower_id,
+                logger.error(
+                    "Failed to replace order on %s: %s",
+                    follower_id, e,
                 )
 
         return results

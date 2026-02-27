@@ -20,7 +20,6 @@ from app.database import get_session_factory
 from app.engine.blacklist_manager import BlacklistManager
 from app.engine.multiplier_manager import MultiplierManager
 from app.models.locate_map import LocateMap
-from app.services.audit_service import AuditService
 from app.services.notification_service import NotificationService
 
 if TYPE_CHECKING:
@@ -37,13 +36,11 @@ class LocateReplicator:
         das_service: DASService,
         multiplier_mgr: MultiplierManager,
         blacklist_mgr: BlacklistManager,
-        audit: AuditService,
         notifier: NotificationService,
     ) -> None:
         self._das = das_service
         self._multiplier_mgr = multiplier_mgr
         self._blacklist_mgr = blacklist_mgr
-        self._audit = audit
         self._notifier = notifier
 
         # Active retry tasks: locate_map_id → asyncio.Task
@@ -53,10 +50,7 @@ class LocateReplicator:
 
     def _get_follower(self, follower_id: str) -> DASClient | None:
         """Get a connected follower client, or None."""
-        client = self._das.get_follower_client(follower_id)
-        if client and client.is_running:
-            return client
-        return None
+        return self._das.get_connected_follower(follower_id)
 
     async def replicate_locate(
         self,
@@ -75,6 +69,10 @@ class LocateReplicator:
         5. If unavailable → start retry loop
         """
         if self._blacklist_mgr.is_blacklisted(follower_id, symbol):
+            logger.debug(
+                "Skipping locate for %s on %s: symbol is blacklisted",
+                symbol, follower_id,
+            )
             return
 
         follower_client = self._get_follower(follower_id)
@@ -97,12 +95,9 @@ class LocateReplicator:
             status="scanning",
         )
 
-        await self._audit.info(
-            "locate",
-            f"Scanning locates for {symbol} on {follower_id}: "
-            f"target={target_qty} (master={master_qty}×{multiplier:.2f})",
-            follower_id=follower_id,
-            symbol=symbol,
+        logger.info(
+            "Scanning locates for %s on %s: target=%d (master=%d x%.2f)",
+            symbol, follower_id, target_qty, master_qty, multiplier,
         )
 
         try:
@@ -117,6 +112,13 @@ class LocateReplicator:
                 cheapest = scan_result.best_offer
                 follower_price = float(cheapest.price_per_share)
                 price_diff = follower_price - master_price
+
+                logger.debug(
+                    "Locate scan for %s on %s: follower_price=%.4f "
+                    "master_price=%.4f diff=%.4f max_delta=%.4f",
+                    symbol, follower_id,
+                    follower_price, master_price, price_diff, max_delta,
+                )
 
                 await self._update_locate_record(
                     locate_map_id, follower_price=follower_price
@@ -154,6 +156,10 @@ class LocateReplicator:
                     )
             else:
                 # No locates available — start retry loop
+                logger.debug(
+                    "No locates available for %s on %s — starting retry loop",
+                    symbol, follower_id,
+                )
                 await self._start_retry(
                     locate_map_id,
                     follower_id,
@@ -167,11 +173,9 @@ class LocateReplicator:
 
         except Exception as e:
             await self._update_locate_status(locate_map_id, "failed")
-            await self._audit.error(
-                "locate",
-                f"Locate scan failed for {symbol} on {follower_id}: {e}",
-                follower_id=follower_id,
-                symbol=symbol,
+            logger.error(
+                "Locate scan failed for %s on %s: %s",
+                symbol, follower_id, e,
             )
 
     async def _accept_locate(
@@ -189,11 +193,9 @@ class LocateReplicator:
         try:
             result = await follower_client.accept_locate_offer(offer)  # noqa: F841
             await self._update_locate_status(locate_map_id, "accepted")
-            await self._audit.info(
-                "locate",
-                f"Auto-accepted locate for {symbol} on {follower_id}",
-                follower_id=follower_id,
-                symbol=symbol,
+            logger.info(
+                "Auto-accepted locate for %s on %s",
+                symbol, follower_id,
             )
             await self._notifier.broadcast(
                 "locate_accepted",
@@ -205,11 +207,9 @@ class LocateReplicator:
             )
         except Exception as e:
             await self._update_locate_status(locate_map_id, "failed")
-            await self._audit.error(
-                "locate",
-                f"Failed to accept locate for {symbol} on {follower_id}: {e}",
-                follower_id=follower_id,
-                symbol=symbol,
+            logger.error(
+                "Failed to accept locate for %s on %s: %s",
+                symbol, follower_id, e,
             )
 
     async def _prompt_user(
@@ -309,16 +309,16 @@ class LocateReplicator:
                 await self._update_locate_status(locate_map_id, "cancelled")
             except Exception as e:
                 await self._update_locate_status(locate_map_id, "failed")
-                await self._audit.error(
-                    "locate",
-                    f"Locate retry failed for {symbol} on {follower_id}: {e}",
-                    follower_id=follower_id,
-                    symbol=symbol,
+                logger.error(
+                    "Locate retry failed for %s on %s: %s",
+                    symbol, follower_id, e,
                 )
             finally:
-                self._retry_tasks.pop(locate_map_id, None)
+                # Only remove if this task is still the registered one
+                if self._retry_tasks.get(locate_map_id) is task:
+                    del self._retry_tasks[locate_map_id]
 
-        task = asyncio.create_task(retry_loop())
+        task = asyncio.create_task(retry_loop(), name=f"locate-retry-{locate_map_id}")
         self._retry_tasks[locate_map_id] = task
 
     async def handle_user_accept(self, locate_map_id: int) -> dict[str, Any]:
@@ -331,11 +331,9 @@ class LocateReplicator:
             return {"success": False, "error": "No pending prompt found"}
 
         await self._update_locate_status(locate_map_id, "accepted")
-        await self._audit.info(
-            "locate",
-            f"User accepted locate for {prompt['symbol']} on {prompt['follower_id']}",
-            follower_id=prompt["follower_id"],
-            symbol=prompt["symbol"],
+        logger.info(
+            "User accepted locate for %s on %s",
+            prompt["symbol"], prompt["follower_id"],
         )
 
         # Notify UI to tell user to manually enter the position
@@ -379,12 +377,9 @@ class LocateReplicator:
             reason="locate_rejected",
         )
 
-        await self._audit.info(
-            "locate",
-            f"User rejected locate for {prompt['symbol']} on {prompt['follower_id']}. "
-            f"Symbol blacklisted.",
-            follower_id=prompt["follower_id"],
-            symbol=prompt["symbol"],
+        logger.info(
+            "User rejected locate for %s on %s — symbol blacklisted",
+            prompt["symbol"], prompt["follower_id"],
         )
 
         await self._notifier.broadcast(

@@ -78,6 +78,28 @@ class PositionTracker:
                 },
             )
 
+    @staticmethod
+    def _serialize_position(pos: Any) -> dict[str, Any]:
+        """Convert a DAS position object to a JSON-serializable dict."""
+        unrealized = (
+            float(pos.das_unrealized_pnl) if pos.das_unrealized_pnl else 0.0
+        )
+        realized = float(pos.realized_pnl)
+        return {
+            "symbol": pos.symbol,
+            "side": (
+                str(pos.position_type.name)
+                if hasattr(pos.position_type, "name")
+                else str(pos.position_type)
+            ),
+            "quantity": pos.quantity,
+            "avg_cost": float(pos.avg_cost),
+            "realized_pnl": realized,
+            "unrealized_pnl": unrealized,
+            "total_pnl": realized + unrealized,
+            "last_price": float(pos.last_price) if pos.last_price else 0,
+        }
+
     def get_positions_snapshot(self) -> dict[str, Any]:
         """Build a snapshot of all positions for the dashboard."""
         snapshot: dict[str, Any] = {"master": [], "followers": {}}
@@ -85,26 +107,7 @@ class PositionTracker:
         master_client = self._das.master_client
         if master_client and master_client.is_running:
             for pos in master_client.positions:
-                unrealized = (
-                    float(pos.das_unrealized_pnl) if pos.das_unrealized_pnl else 0.0
-                )
-                realized = float(pos.realized_pnl)
-                snapshot["master"].append(
-                    {
-                        "symbol": pos.symbol,
-                        "side": (
-                            str(pos.position_type.name)
-                            if hasattr(pos.position_type, "name")
-                            else str(pos.position_type)
-                        ),
-                        "quantity": pos.quantity,
-                        "avg_cost": float(pos.avg_cost),
-                        "realized_pnl": realized,
-                        "unrealized_pnl": unrealized,
-                        "total_pnl": realized + unrealized,
-                        "last_price": float(pos.last_price) if pos.last_price else 0,
-                    }
-                )
+                snapshot["master"].append(self._serialize_position(pos))
 
         for fid, client in self._das.follower_clients.items():
             if not client.is_running:
@@ -113,32 +116,14 @@ class PositionTracker:
 
             positions: list[dict[str, Any]] = []
             for pos in client.positions:
-                unrealized = (
-                    float(pos.das_unrealized_pnl) if pos.das_unrealized_pnl else 0.0
+                entry = self._serialize_position(pos)
+                entry["effective_multiplier"] = (
+                    self._multiplier_mgr.get_effective(fid, pos.symbol)
                 )
-                realized = float(pos.realized_pnl)
-                positions.append(
-                    {
-                        "symbol": pos.symbol,
-                        "side": (
-                            str(pos.position_type.name)
-                            if hasattr(pos.position_type, "name")
-                            else str(pos.position_type)
-                        ),
-                        "quantity": pos.quantity,
-                        "avg_cost": float(pos.avg_cost),
-                        "realized_pnl": realized,
-                        "unrealized_pnl": unrealized,
-                        "total_pnl": realized + unrealized,
-                        "last_price": float(pos.last_price) if pos.last_price else 0,
-                        "effective_multiplier": self._multiplier_mgr.get_effective(
-                            fid, pos.symbol
-                        ),
-                        "multiplier_source": self._multiplier_mgr.get_source(
-                            fid, pos.symbol
-                        ),
-                    }
+                entry["multiplier_source"] = (
+                    self._multiplier_mgr.get_source(fid, pos.symbol)
                 )
+                positions.append(entry)
             snapshot["followers"][fid] = positions
 
         return snapshot

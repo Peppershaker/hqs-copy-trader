@@ -41,6 +41,13 @@ class DASService:
         """Get a single follower client by ID."""
         return self._follower_clients.get(follower_id)
 
+    def get_connected_follower(self, follower_id: str) -> DASClient | None:
+        """Get a follower client only if it is connected and running."""
+        client = self._follower_clients.get(follower_id)
+        if client and client.is_running:
+            return client
+        return None
+
     @property
     def is_running(self) -> bool:
         return self._running
