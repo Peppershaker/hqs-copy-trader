@@ -18,9 +18,6 @@ from das_bridge.domain.events.order_events import (
     OrderCancelledEvent,
     OrderReplacedEvent,
 )
-from das_bridge.domain.events.position_events import (
-    PositionOpenedEvent,
-)
 
 from app.engine.action_queue import ActionQueue, QueuedAction, QueuedActionType
 from app.engine.blacklist_manager import BlacklistManager
@@ -94,7 +91,6 @@ class ReplicationEngine:
         self._position_tracker = PositionTracker(
             das_service,
             self._multiplier_mgr,
-            notifier,
         )
 
         # Disconnected-follower action queue
@@ -148,16 +144,31 @@ class ReplicationEngine:
         """Return the position tracker sub-engine."""
         return self._position_tracker
 
+    @property
+    def is_running(self) -> bool:
+        """Return whether the replication engine is actively running."""
+        return self._running
+
     async def start(
-        self, follower_configs: dict[str, dict[str, Any]] | None = None
+        self,
+        follower_configs: dict[str, dict[str, Any]] | None = None,
+        *,
+        load_persistent_state: bool = True,
     ) -> None:
-        """Initialize state and subscribe to master events."""
+        """Initialize state and subscribe to master events.
+
+        Args:
+            follower_configs: Per-follower config dicts (locate settings, etc.).
+            load_persistent_state: Whether to load multipliers/blacklist from DB.
+                Set to False when the caller has already loaded them (e.g. the
+                two-phase connect flow).
+        """
         if self._running:
             return
 
-        # Load persistent state
-        await self._multiplier_mgr.load_from_db()
-        await self._blacklist_mgr.load_from_db()
+        if load_persistent_state:
+            await self._multiplier_mgr.load_from_db()
+            await self._blacklist_mgr.load_from_db()
 
         if follower_configs:
             self._follower_configs = follower_configs
@@ -166,7 +177,6 @@ class ReplicationEngine:
         master = self._das.master_client
         if master:
             self._subscribe_to_master(master)
-            self._subscribe_to_followers()
 
         # Start periodic state push to UI
         self._state_push_task = asyncio.create_task(self._state_push_loop())
@@ -214,21 +224,6 @@ class ReplicationEngine:
         self._unsubscribers.append(unsub)
 
         logger.info("Subscribed to master events")
-
-    def _subscribe_to_followers(self) -> None:
-        """Subscribe to position events on all follower clients."""
-        for fid, client in self._das.follower_clients.items():
-
-            def _make_coro(
-                _fid: str,
-            ) -> Callable[[PositionOpenedEvent], Coroutine[Any, Any, None]]:
-                async def coro(event: PositionOpenedEvent) -> None:
-                    await self._on_follower_position_opened(event, _fid)
-
-                return coro
-
-            unsub = client.on(PositionOpenedEvent, _fire(_make_coro(fid)))
-            self._unsubscribers.append(unsub)
 
     # --- Master event handlers ---
 
@@ -456,18 +451,6 @@ class ReplicationEngine:
                 "master_order_id": master_order_id,
                 "follower_results": results,
             },
-        )
-
-    # --- Follower event handlers ---
-
-    async def _on_follower_position_opened(
-        self, event: PositionOpenedEvent, follower_id: str
-    ) -> None:
-        """Follower opened a new position — infer multiplier if applicable."""
-        await self._position_tracker.on_follower_position_opened(
-            follower_id=follower_id,
-            symbol=event.symbol,
-            follower_qty=event.initial_quantity,
         )
 
     # --- State push loop ---

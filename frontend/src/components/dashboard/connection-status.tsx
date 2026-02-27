@@ -2,16 +2,20 @@
 
 import { useAppStore } from "@/stores/app-store";
 import { cn } from "@/lib/utils";
-import { Power, PowerOff } from "lucide-react";
+import { Power, PowerOff, Loader2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useState } from "react";
 
 export function ConnectionStatus() {
   const systemStatus = useAppStore((s) => s.systemStatus);
+  const setReconcileData = useAppStore((s) => s.setReconcileData);
+  const setReconcileOpen = useAppStore((s) => s.setReconcileOpen);
   const [loading, setLoading] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const isRunning = systemStatus?.running ?? false;
+  const isReplicating = systemStatus?.replication_active ?? false;
 
   const handleToggle = async () => {
     setLoading(true);
@@ -20,7 +24,23 @@ export function ConnectionStatus() {
       if (isRunning) {
         await api.stopSystem();
       } else {
-        await api.startSystem();
+        // Phase 1: Connect DAS clients
+        setLoadingPhase("Connecting...");
+        await api.connectSystem();
+
+        // Phase 2: Check for positions to reconcile
+        setLoadingPhase("Checking positions...");
+        const reconcileData = await api.getReconciliation();
+
+        if (reconcileData.has_entries) {
+          // Show reconciliation modal — it handles apply + start
+          setReconcileData(reconcileData);
+          setReconcileOpen(true);
+        } else {
+          // No positions to reconcile — start replication directly
+          setLoadingPhase("Starting replication...");
+          await api.startReplication();
+        }
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to toggle system";
@@ -28,6 +48,7 @@ export function ConnectionStatus() {
       console.error("Failed to toggle system:", e);
     } finally {
       setLoading(false);
+      setLoadingPhase(null);
     }
   };
 
@@ -44,7 +65,12 @@ export function ConnectionStatus() {
           loading && "opacity-50 cursor-not-allowed",
         )}
       >
-        {isRunning ? (
+        {loading ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {loadingPhase ?? "Loading..."}
+          </>
+        ) : isRunning ? (
           <>
             <PowerOff className="h-4 w-4" />
             Stop

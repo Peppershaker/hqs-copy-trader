@@ -101,11 +101,9 @@ export function PositionsTable({
                       <span
                         className={cn(
                           "rounded px-1 py-0.5",
-                          pos.multiplier_source === "auto_inferred"
-                            ? "bg-warning/10 text-warning"
-                            : pos.multiplier_source === "user_override"
-                              ? "bg-accent/10 text-accent"
-                              : "",
+                          pos.multiplier_source === "user_override"
+                            ? "bg-accent/10 text-accent"
+                            : "",
                         )}
                       >
                         {pos.effective_multiplier?.toFixed(2)}×

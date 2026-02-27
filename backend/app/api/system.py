@@ -1,4 +1,4 @@
-"""System management routes (start, stop, status)."""
+"""System management routes (connect, start-replication, stop, status)."""
 
 from __future__ import annotations
 
@@ -16,6 +16,10 @@ router = APIRouter(prefix="/api", tags=["system"])
 _get_das_service: Callable[[], DASService] | None = None
 _get_engine: Callable[[], ReplicationEngine] | None = None
 
+# Cached follower configs from the most recent connect call.
+# Stored at module level so start-replication can access them.
+_follower_configs: dict[str, dict[str, Any]] = {}
+
 
 def set_service_getters(
     das_getter: Callable[[], DASService],
@@ -25,6 +29,11 @@ def set_service_getters(
     global _get_das_service, _get_engine
     _get_das_service = das_getter
     _get_engine = engine_getter
+
+
+def get_follower_configs() -> dict[str, dict[str, Any]]:
+    """Return the cached follower configs from the most recent connect call."""
+    return _follower_configs
 
 
 @router.get("/das-servers")
@@ -39,10 +48,17 @@ async def get_das_servers() -> list[dict[str, Any]]:
 @router.get("/status")
 async def get_status() -> dict[str, Any]:
     """Get system health and connection state."""
-    if _get_das_service is None:
-        return {"running": False, "error": "Not initialized"}
+    if _get_das_service is None or _get_engine is None:
+        return {
+            "running": False,
+            "replication_active": False,
+            "error": "Not initialized",
+        }
     das = _get_das_service()
-    return das.get_status()
+    engine = _get_engine()
+    status = das.get_status()
+    status["replication_active"] = engine.is_running
+    return status
 
 
 @router.get("/health")
@@ -84,11 +100,13 @@ async def get_health() -> dict[str, Any]:
     return result
 
 
-@router.post("/start")
-async def start_system() -> dict[str, Any]:
-    """Start all DAS connections and the replication engine."""
-    if _get_das_service is None or _get_engine is None:
-        raise HTTPException(status_code=503, detail="Server not initialized")
+async def _load_and_connect() -> dict[str, dict[str, Any]]:
+    """Load configs from DB, configure DAS clients, and connect.
+
+    Returns the follower_configs dict needed by the replication engine.
+    """
+    assert _get_das_service is not None
+    assert _get_engine is not None
 
     das = _get_das_service()
     engine = _get_engine()
@@ -161,13 +179,73 @@ async def start_system() -> dict[str, Any]:
                 "auto_accept_locates": f.auto_accept_locates,
             }
 
+    # Connect DAS clients
+    await das.start()
+
+    # Load persistent engine state (multipliers, blacklist)
+    await engine.multiplier_manager.load_from_db()
+    await engine.blacklist_manager.load_from_db()
+
+    return follower_configs
+
+
+@router.post("/connect")
+async def connect_system() -> dict[str, Any]:
+    """Connect all DAS clients and load persistent state.
+
+    Phase 1 of the two-phase start. After this, clients are connected and
+    positions are available for reconciliation, but replication is not yet active.
+    """
+    global _follower_configs
+
+    if _get_das_service is None or _get_engine is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    das = _get_das_service()
+    if das.is_running:
+        raise HTTPException(status_code=409, detail="System already connected")
+
     try:
-        await das.start()
-        await engine.start(follower_configs=follower_configs)
+        _follower_configs = await _load_and_connect()
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    return {"status": "started", **das.get_status()}
+    return {"status": "connected", **das.get_status()}
+
+
+@router.post("/start-replication")
+async def start_replication() -> dict[str, Any]:
+    """Start the replication engine.
+
+    Phase 2 of the two-phase start. Requires DAS clients to be connected
+    (via POST /api/connect). Subscribes to master events and begins
+    replicating orders to followers.
+    """
+    if _get_das_service is None or _get_engine is None:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    das = _get_das_service()
+    engine = _get_engine()
+
+    if not das.is_running:
+        raise HTTPException(
+            status_code=409,
+            detail="DAS clients not connected. Call POST /api/connect first.",
+        )
+    if engine.is_running:
+        raise HTTPException(status_code=409, detail="Replication already active")
+
+    try:
+        await engine.start(
+            follower_configs=_follower_configs,
+            load_persistent_state=False,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return {"status": "started", "replication_active": True}
 
 
 @router.post("/stop")

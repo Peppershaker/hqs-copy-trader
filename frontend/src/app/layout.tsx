@@ -3,6 +3,7 @@ import "./globals.css";
 import { Sidebar } from "@/components/layout/sidebar";
 import { WSProvider } from "@/components/layout/ws-provider";
 import { ReplayDialog } from "@/components/dashboard/replay-dialog";
+import { ReconcileDialog } from "@/components/dashboard/reconcile-dialog";
 
 export const metadata: Metadata = {
   title: "DAS Copy Trader",
@@ -23,6 +24,7 @@ export default function RootLayout({
             <main className="flex-1 overflow-y-auto p-6">{children}</main>
           </div>
           <ReplayDialog />
+          <ReconcileDialog />
         </WSProvider>
       </body>
     </html>

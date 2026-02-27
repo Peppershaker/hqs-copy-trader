@@ -4,8 +4,7 @@ Resolves the effective position size multiplier for a given follower + symbol.
 
 Resolution order:
   1. Per-symbol user override (highest priority)
-  2. Per-symbol auto-inferred from position sizes
-  3. Follower base multiplier (default fallback)
+  2. Follower base multiplier (default fallback)
 """
 
 from __future__ import annotations
@@ -37,7 +36,12 @@ class MultiplierManager:
         ] = {}  # (follower_id, symbol) → source
 
     async def load_from_db(self) -> None:
-        """Load all multipliers from the database into memory."""
+        """Load all multipliers from the database into memory.
+
+        Also performs a one-time migration: deletes any stale
+        ``source='auto_inferred'`` rows left over from the deprecated
+        auto-inference feature.
+        """
         factory = get_session_factory()
         async with factory() as session:
             # Load base multipliers
@@ -45,7 +49,24 @@ class MultiplierManager:
             for follower in result.scalars():
                 self._base_multipliers[follower.id] = follower.base_multiplier
 
-            # Load symbol overrides
+            # Delete stale auto_inferred entries (deprecated feature)
+            stale = await session.execute(
+                select(SymbolMultiplier).where(
+                    SymbolMultiplier.source == "auto_inferred"
+                )
+            )
+            stale_count = 0
+            for sm in stale.scalars():
+                await session.delete(sm)
+                stale_count += 1
+            if stale_count:
+                await session.commit()
+                logger.info(
+                    "Cleaned up %d stale auto_inferred multiplier entries",
+                    stale_count,
+                )
+
+            # Load symbol overrides (only user_override remain)
             result = await session.execute(select(SymbolMultiplier))
             for sm in result.scalars():
                 key = (sm.follower_id, sm.symbol)
@@ -61,7 +82,7 @@ class MultiplierManager:
     def get_effective(self, follower_id: str, symbol: str) -> float:
         """Get the effective multiplier for a follower and symbol.
 
-        Resolution: user_override > auto_inferred > base_multiplier > 1.0
+        Resolution: user_override > base_multiplier > 1.0
         """
         key = (follower_id, symbol)
         if key in self._symbol_overrides:
@@ -120,23 +141,6 @@ class MultiplierManager:
             follower_id,
             symbol,
             multiplier,
-        )
-
-    async def set_auto_inferred(
-        self, follower_id: str, symbol: str, multiplier: float
-    ) -> None:
-        """Set an auto-inferred multiplier. Does NOT overwrite user overrides."""
-        key = (follower_id, symbol)
-        current_source = self._symbol_sources.get(key)
-        if current_source == "user_override":
-            logger.debug(
-                "Skipping auto-inferred multiplier for %s/%s: user override exists",
-                follower_id,
-                symbol,
-            )
-            return
-        await self.set_symbol_override(
-            follower_id, symbol, multiplier, source="auto_inferred"
         )
 
     async def remove_symbol_override(self, follower_id: str, symbol: str) -> None:

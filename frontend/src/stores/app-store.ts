@@ -5,12 +5,12 @@ import type {
   Alert,
   DasServer,
   Follower,
-  LocatePrompt,
   LogEntry,
   MasterConfig,
   OrderInfo,
   Position,
   QueuedAction,
+  ReconcileResponse,
   StateUpdate,
   SystemStatus,
 } from "@/lib/types";
@@ -42,8 +42,11 @@ interface AppState {
   dismissAlert: (id: string) => void;
   clearAlerts: () => void;
 
-  // Locate prompts (active)
-  locatePrompts: LocatePrompt[];
+  // Reconciliation
+  reconcileData: ReconcileResponse | null;
+  reconcileOpen: boolean;
+  setReconcileData: (data: ReconcileResponse | null) => void;
+  setReconcileOpen: (open: boolean) => void;
 
   // Queued actions (for disconnected followers)
   queuedActions: Record<string, QueuedAction[]>;
@@ -99,7 +102,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
   clearAlerts: () => set({ alerts: [] }),
 
-  locatePrompts: [],
+  reconcileData: null,
+  reconcileOpen: false,
+  setReconcileData: (data) => set({ reconcileData: data }),
+  setReconcileOpen: (open) => set({ reconcileOpen: open }),
 
   queuedActions: {},
   setQueuedActions: (followerId, actions) =>
@@ -143,60 +149,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         state.addAlert({
           type: "info",
           message: `Order replicated: ${data.side} ${data.quantity} ${data.symbol}`,
-          data,
-        });
-        break;
-
-      case "locate_prompt":
-        set((s) => ({
-          locatePrompts: [...s.locatePrompts, data as unknown as LocatePrompt],
-        }));
-        state.addAlert({
-          type: "locate_prompt",
-          message: `Locate available for ${data.symbol} on ${data.follower_id}: $${data.follower_price}/sh (master: $${data.master_price}/sh)`,
-          data,
-        });
-        break;
-
-      case "locate_found":
-        state.addAlert({
-          type: "info",
-          message: `Locates found for ${data.symbol} on ${data.follower_id}`,
-          data,
-        });
-        break;
-
-      case "locate_accepted_manual_entry":
-        state.addAlert({
-          type: "warning",
-          message: String(data.message),
-          data,
-        });
-        // Remove from prompts
-        set((s) => ({
-          locatePrompts: s.locatePrompts.filter(
-            (p) => p.locate_map_id !== data.locate_map_id,
-          ),
-        }));
-        break;
-
-      case "locate_rejected":
-        set((s) => ({
-          locatePrompts: s.locatePrompts.filter(
-            (p) => p.locate_map_id !== data.locate_map_id,
-          ),
-        }));
-        state.addAlert({
-          type: "info",
-          message: `Locate rejected for ${data.symbol} on ${data.follower_id}. Symbol blacklisted.`,
-          data,
-        });
-        break;
-
-      case "multiplier_inferred":
-        state.addAlert({
-          type: "multiplier_inferred",
-          message: `Auto-adjusted multiplier for ${data.follower_id} on ${data.symbol}: ${data.old_multiplier}× → ${data.new_multiplier}×`,
           data,
         });
         break;

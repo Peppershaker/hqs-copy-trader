@@ -32,7 +32,7 @@ class SymbolMultiplier(Base):
     multiplier: Mapped[float] = mapped_column(Float, nullable=False)
     source: Mapped[str] = mapped_column(
         String, nullable=False
-    )  # 'auto_inferred' | 'user_override'
+    )  # 'user_override'
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )

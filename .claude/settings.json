@@ -28,7 +28,13 @@
       "Bash(xargs ls -la)",
       "Bash(ruff check app/engine/short_sale_manager.py app/engine/replication_engine.py app/engine/action_queue.py app/models/follower.py app/api/short_sales.py app/api/system.py app/api/websocket.py app/main.py)",
       "Bash(ruff format --check app/engine/short_sale_manager.py app/engine/replication_engine.py app/engine/action_queue.py app/models/follower.py app/api/short_sales.py app/api/system.py app/api/websocket.py app/main.py)",
-      "Bash(python -m ruff check app/engine/order_replicator.py app/engine/short_sale_manager.py)"
+      "Bash(python -m ruff check app/engine/order_replicator.py app/engine/short_sale_manager.py)",
+      "Bash(python -m ruff check app/api/system.py app/engine/replication_engine.py)",
+      "Bash(python -m ruff check app/api/reconcile.py app/schemas/reconcile.py app/main.py)",
+      "Bash(python -m ruff format app/api/reconcile.py)",
+      "Bash(python -m ruff check app/engine/replication_engine.py app/engine/position_tracker.py app/engine/multiplier_manager.py app/models/__init__.py)",
+      "Bash(python -m ruff format --check app/engine/replication_engine.py app/engine/position_tracker.py app/engine/multiplier_manager.py)",
+      "Bash(npx next lint)"
     ]
   }
 }

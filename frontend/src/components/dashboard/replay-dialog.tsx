@@ -9,7 +9,6 @@ const ACTION_LABELS: Record<string, string> = {
   order_submit: "Submit order",
   order_cancel: "Cancel order",
   order_replace: "Replace order",
-  locate: "Locate shares",
 };
 
 function ActionRow({
@@ -46,14 +45,6 @@ function ActionRow({
           <div className="mt-1 text-xs text-muted-foreground">
             {snap.side} {snap.quantity} shares &middot; {snap.type}
             {snap.price ? ` @ $${snap.price}` : ""}
-          </div>
-        )}
-
-        {/* Locate detail */}
-        {action.action_type === "locate" && (
-          <div className="mt-1 text-xs text-muted-foreground">
-            Qty: {String(action.payload.master_qty)} &middot; Master price: $
-            {String(action.payload.master_price)}
           </div>
         )}
 

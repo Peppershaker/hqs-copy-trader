@@ -92,22 +92,31 @@ export const api = {
       method: "DELETE",
     }),
 
-  // Locates
-  acceptLocate: (locateMapId: number) =>
-    request<Record<string, unknown>>(`/api/locates/${locateMapId}/accept`, {
-      method: "POST",
-    }),
-  rejectLocate: (locateMapId: number) =>
-    request<Record<string, unknown>>(`/api/locates/${locateMapId}/reject`, {
-      method: "POST",
-    }),
-
   // System
   getStatus: () => request<import("./types").SystemStatus>("/api/status"),
-  startSystem: () =>
-    request<Record<string, unknown>>("/api/start", { method: "POST" }),
+  connectSystem: () =>
+    request<Record<string, unknown>>("/api/connect", { method: "POST" }),
+  startReplication: () =>
+    request<Record<string, unknown>>("/api/start-replication", {
+      method: "POST",
+    }),
   stopSystem: () =>
     request<Record<string, unknown>>("/api/stop", { method: "POST" }),
+
+  // Reconciliation
+  getReconciliation: (followerIds?: string[]) => {
+    const params = followerIds?.length
+      ? `?follower_ids=${followerIds.join(",")}`
+      : "";
+    return request<import("./types").ReconcileResponse>(
+      `/api/reconcile${params}`,
+    );
+  },
+  applyReconciliation: (data: import("./types").ReconcileApplyRequest) =>
+    request<Record<string, unknown>>("/api/reconcile/apply", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // Queued Actions
   getQueuedActions: (followerId: string) =>

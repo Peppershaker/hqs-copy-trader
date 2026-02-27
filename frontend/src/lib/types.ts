@@ -105,16 +105,53 @@ export interface SymbolMultiplier {
   updated_at: string;
 }
 
-// --- Locate ---
+// --- Reconciliation ---
 
-export interface LocatePrompt {
-  locate_map_id: number;
-  follower_id: string;
+export type ReconcileScenario =
+  | "common_same_dir"
+  | "common_diff_dir"
+  | "master_only";
+
+export interface ReconcilePositionEntry {
   symbol: string;
-  qty: number;
-  master_price: number;
-  follower_price: number;
-  reason: string;
+  master_qty: number;
+  master_side: string;
+  follower_qty: number;
+  follower_side: string | null;
+  scenario: ReconcileScenario;
+  inferred_multiplier: number | null;
+  current_multiplier: number;
+  current_source: string;
+  is_blacklisted: boolean;
+  default_action: string;
+}
+
+export interface ReconcileFollowerData {
+  follower_id: string;
+  follower_name: string;
+  base_multiplier: number;
+  entries: ReconcilePositionEntry[];
+}
+
+export interface ReconcileResponse {
+  followers: ReconcileFollowerData[];
+  has_entries: boolean;
+}
+
+export interface ReconcileDecision {
+  symbol: string;
+  action: "use_inferred" | "manual" | "use_default";
+  multiplier: number | null;
+  blacklist: boolean;
+}
+
+export interface ReconcileApplyFollower {
+  follower_id: string;
+  decisions: ReconcileDecision[];
+}
+
+export interface ReconcileApplyRequest {
+  followers: ReconcileApplyFollower[];
 }
 
 // --- WebSocket Messages ---
@@ -124,17 +161,12 @@ export type WSMessageType =
   | "order_replicated"
   | "order_cancelled"
   | "order_replaced"
-  | "locate_prompt"
-  | "locate_found"
-  | "locate_accepted"
-  | "locate_accepted_manual_entry"
-  | "locate_rejected"
-  | "multiplier_inferred"
   | "alert"
   | "buying_power_warning"
   | "action_queued"
   | "queued_actions_available"
   | "actions_replayed"
+  | "short_sale_task_update"
   | "log_entries";
 
 // --- Log Buffer Entry ---
@@ -157,6 +189,7 @@ export interface WSMessage {
 
 export interface SystemStatus {
   running: boolean;
+  replication_active: boolean;
   master: {
     configured: boolean;
     connected: boolean;
@@ -184,7 +217,7 @@ export interface StateUpdate {
 
 export interface Alert {
   id: string;
-  type: "locate_prompt" | "multiplier_inferred" | "error" | "info" | "warning";
+  type: "error" | "info" | "warning";
   message: string;
   data?: Record<string, unknown>;
   timestamp: number;
@@ -230,7 +263,7 @@ export interface DasServer {
 export interface QueuedAction {
   id: string;
   follower_id: string;
-  action_type: "order_submit" | "order_cancel" | "order_replace" | "locate";
+  action_type: "order_submit" | "order_cancel" | "order_replace";
   symbol: string;
   timestamp: number;
   payload: Record<string, unknown>;
