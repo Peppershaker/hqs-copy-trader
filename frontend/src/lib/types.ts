@@ -191,6 +191,14 @@ export interface Alert {
   dismissed?: boolean;
 }
 
+// --- Log Directory ---
+
+export interface LogDirectory {
+  name: string;
+  files: string[];
+  size_bytes: number;
+}
+
 // --- Audit Log ---
 
 export interface AuditLogEntry {

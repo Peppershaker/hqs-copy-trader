@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { api } from "@/lib/api-client";
 import { useAppStore } from "@/stores/app-store";
-import type { LogEntry } from "@/lib/types";
+import type { LogEntry, LogDirectory } from "@/lib/types";
 
 // ============================================================
 // Database Reset Panel
@@ -348,6 +348,164 @@ function LogViewerPanel() {
 }
 
 // ============================================================
+// Log Directory Panel
+// ============================================================
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function LogDirectoryPanel() {
+  const [dirs, setDirs] = useState<LogDirectory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await api.getLogDirs();
+      setDirs(res.directories);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const allSelected = dirs.length > 0 && selected.size === dirs.length;
+
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(dirs.map((d) => d.name)));
+    }
+  };
+
+  const toggle = (name: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const handleDelete = async () => {
+    if (selected.size === 0) return;
+    setDeleting(true);
+    try {
+      await api.deleteLogDirs(Array.from(selected));
+      setSelected(new Set());
+      await load();
+    } catch {
+      // ignore
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const totalSize = dirs.reduce((sum, d) => sum + d.size_bytes, 0);
+  const selectedSize = dirs
+    .filter((d) => selected.has(d.name))
+    .reduce((sum, d) => sum + d.size_bytes, 0);
+
+  return (
+    <div className="rounded-lg border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border px-4 py-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-semibold">Log Files</h2>
+          <span className="text-xs text-muted-foreground">
+            {dirs.length} run{dirs.length !== 1 && "s"} &middot;{" "}
+            {formatBytes(totalSize)}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={load}
+            disabled={loading}
+            className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+          >
+            Refresh
+          </button>
+          {selected.size > 0 && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="text-xs text-destructive hover:text-destructive/80 disabled:opacity-50"
+            >
+              {deleting
+                ? "Deleting..."
+                : `Delete ${selected.size} (${formatBytes(selectedSize)})`}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="max-h-64 overflow-y-auto">
+        {loading ? (
+          <p className="text-xs text-muted-foreground text-center py-6">
+            Loading...
+          </p>
+        ) : dirs.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-6">
+            No log directories found.
+          </p>
+        ) : (
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border text-muted-foreground">
+                <th className="px-4 py-1.5 text-left w-8">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    className="rounded"
+                  />
+                </th>
+                <th className="px-2 py-1.5 text-left">Run</th>
+                <th className="px-2 py-1.5 text-left">Files</th>
+                <th className="px-4 py-1.5 text-right">Size</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dirs.map((d) => (
+                <tr
+                  key={d.name}
+                  onClick={() => toggle(d.name)}
+                  className="border-b border-border/50 hover:bg-muted/30 cursor-pointer"
+                >
+                  <td className="px-4 py-1.5">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(d.name)}
+                      onChange={() => toggle(d.name)}
+                      className="rounded"
+                    />
+                  </td>
+                  <td className="px-2 py-1.5 font-mono">{d.name}</td>
+                  <td className="px-2 py-1.5 text-muted-foreground">
+                    {d.files.join(", ")}
+                  </td>
+                  <td className="px-4 py-1.5 text-right text-muted-foreground">
+                    {formatBytes(d.size_bytes)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // Dev Page
 // ============================================================
 export default function DevPage() {
@@ -361,6 +519,7 @@ export default function DevPage() {
       </div>
 
       <DatabaseResetPanel />
+      <LogDirectoryPanel />
       <LogViewerPanel />
     </div>
   );

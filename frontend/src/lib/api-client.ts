@@ -187,4 +187,15 @@ export const api = {
   },
   clearDevLogs: () =>
     request<{ status: string }>("/api/dev/logs", { method: "DELETE" }),
+
+  // Log directories
+  getLogDirs: () =>
+    request<{ directories: import("./types").LogDirectory[] }>(
+      "/api/dev/log-dirs",
+    ),
+  deleteLogDirs: (names: string[]) =>
+    request<{ deleted: string[] }>("/api/dev/log-dirs/delete", {
+      method: "POST",
+      body: JSON.stringify({ names }),
+    }),
 };
