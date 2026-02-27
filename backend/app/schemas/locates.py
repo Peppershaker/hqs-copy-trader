@@ -8,6 +8,8 @@ from pydantic import BaseModel
 
 
 class LocateMapResponse(BaseModel):
+    """Response schema for a locate replication mapping."""
+
     id: int
     master_locate_id: int | None
     follower_id: str

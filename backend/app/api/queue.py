@@ -23,6 +23,7 @@ _get_engine: Callable[[], ReplicationEngine] | None = None
 def set_queue_engine_getter(
     engine_getter: Callable[[], ReplicationEngine],
 ) -> None:
+    """Inject the engine getter used by queue endpoints."""
     global _get_engine
     _get_engine = engine_getter
 
@@ -59,7 +60,9 @@ async def list_queued_actions(follower_id: str) -> Any:
 
 
 @router.post("/queued-actions/{follower_id}/replay")
-async def replay_queued_actions(follower_id: str, body: ReplayRequest) -> dict[str, Any]:
+async def replay_queued_actions(
+    follower_id: str, body: ReplayRequest
+) -> dict[str, Any]:
     """Replay selected queued actions on a reconnected follower."""
     if _get_engine is None:
         return {"error": "Not initialized"}
@@ -69,7 +72,9 @@ async def replay_queued_actions(follower_id: str, body: ReplayRequest) -> dict[s
 
 
 @router.post("/queued-actions/{follower_id}/discard")
-async def discard_queued_actions(follower_id: str, body: DiscardRequest) -> dict[str, Any]:
+async def discard_queued_actions(
+    follower_id: str, body: DiscardRequest
+) -> dict[str, Any]:
     """Discard selected queued actions without replaying."""
     if _get_engine is None:
         return {"error": "Not initialized"}

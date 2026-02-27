@@ -11,6 +11,8 @@ _TICKER_RE = re.compile(r"^[A-Za-z]{1,5}$")
 
 
 class BlacklistEntryCreate(BaseModel):
+    """Request schema for creating a blacklist entry."""
+
     follower_id: str
     symbol: str
     reason: str | None = "manual"
@@ -18,6 +20,7 @@ class BlacklistEntryCreate(BaseModel):
     @field_validator("symbol")
     @classmethod
     def validate_symbol(cls, v: str) -> str:
+        """Normalize and validate the ticker symbol."""
         v = v.strip().upper()
         if not _TICKER_RE.match(v):
             raise ValueError("Symbol must be 1-5 letters only")
@@ -25,6 +28,8 @@ class BlacklistEntryCreate(BaseModel):
 
 
 class BlacklistEntryResponse(BaseModel):
+    """Response schema for a blacklist entry."""
+
     id: int
     follower_id: str
     symbol: str

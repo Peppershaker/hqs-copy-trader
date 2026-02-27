@@ -17,7 +17,9 @@ class BlacklistEntry(Base):
     __table_args__ = (UniqueConstraint("follower_id", "symbol"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    follower_id: Mapped[str] = mapped_column(String, ForeignKey("followers.id"), nullable=False)
+    follower_id: Mapped[str] = mapped_column(
+        String, ForeignKey("followers.id"), nullable=False
+    )
     symbol: Mapped[str] = mapped_column(String, nullable=False)
     reason: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

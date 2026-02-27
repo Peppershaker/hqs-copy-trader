@@ -19,11 +19,13 @@ class LogBuffer:
     """Thread-safe ring buffer that stores recent log entries."""
 
     def __init__(self, max_entries: int = 2000) -> None:
+        """Initialize the buffer with a fixed maximum size."""
         self._entries: deque[dict[str, Any]] = deque(maxlen=max_entries)
         self._lock = threading.Lock()
         self._seq = 0
 
     def append(self, entry: dict[str, Any]) -> None:
+        """Add a log entry to the buffer with a sequence number."""
         with self._lock:
             self._seq += 1
             entry["seq"] = self._seq
@@ -51,11 +53,13 @@ class LogBuffer:
             return [e for e in self._entries if e["seq"] > since_seq]
 
     def clear(self) -> None:
+        """Remove all entries from the buffer."""
         with self._lock:
             self._entries.clear()
 
     @property
     def latest_seq(self) -> int:
+        """Return the most recent sequence number."""
         with self._lock:
             return self._seq
 
@@ -66,10 +70,12 @@ class LogBufferHandler(logging.Handler):
     DAS_BRIDGE_PREFIXES = ("das_bridge",)
 
     def __init__(self, buffer: LogBuffer) -> None:
+        """Initialize the handler with a target log buffer."""
         super().__init__()
         self.buffer = buffer
 
     def emit(self, record: logging.LogRecord) -> None:
+        """Format and append a log record to the buffer."""
         try:
             source = (
                 "das_bridge"
@@ -93,7 +99,10 @@ class _SourceFilter(logging.Filter):
     """Route log records by logger-name prefix."""
 
     def __init__(
-        self, *, include_prefix: str = "", exclude_prefix: str = "",
+        self,
+        *,
+        include_prefix: str = "",
+        exclude_prefix: str = "",
     ) -> None:
         super().__init__()
         self._include = include_prefix

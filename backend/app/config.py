@@ -25,6 +25,7 @@ class DasServerConfig(BaseModel):
 
     @property
     def broker_id_lower(self) -> str:
+        """Return the broker ID in lowercase."""
         return self.broker_id.lower()
 
 
@@ -35,8 +36,8 @@ class AppConfig(BaseSettings):
     app_host: str = "127.0.0.1"
     app_port: int = 8787
 
-    # Database
-    db_path: str = "./das_copy_trader.db"
+    # Database – default is relative to the backend/ directory, not the CWD.
+    db_path: str = ""
 
     # Logging
     log_level: str = "INFO"
@@ -61,8 +62,25 @@ class AppConfig(BaseSettings):
             return []
 
     @property
+    def resolved_db_path(self) -> str:
+        """Return an absolute path for the database file.
+
+        If db_path is empty (default), place the file in the backend/ directory.
+        If db_path is already absolute, use it as-is.
+        If db_path is relative, resolve it relative to backend/.
+        """
+        backend_dir = Path(__file__).resolve().parent.parent
+        if not self.db_path:
+            return str(backend_dir / "das_copy_trader.db")
+        p = Path(self.db_path)
+        if p.is_absolute():
+            return str(p)
+        return str(backend_dir / p)
+
+    @property
     def database_url(self) -> str:
-        return f"sqlite+aiosqlite:///{self.db_path}"
+        """Return the async SQLAlchemy database URL."""
+        return f"sqlite+aiosqlite:///{self.resolved_db_path}"
 
     @property
     def resolved_static_dir(self) -> Path | None:
@@ -88,6 +106,7 @@ _config: AppConfig | None = None
 
 
 def get_config() -> AppConfig:
+    """Return the cached application config, creating it on first call."""
     global _config
     if _config is None:
         _config = AppConfig()

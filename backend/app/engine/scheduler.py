@@ -27,7 +27,10 @@ def _seconds_until_next_restart() -> float:
     """Calculate seconds until the next 3:00 AM New York time."""
     now = datetime.now(NY_TZ)
     target = now.replace(
-        hour=RESTART_HOUR, minute=RESTART_MINUTE, second=0, microsecond=0,
+        hour=RESTART_HOUR,
+        minute=RESTART_MINUTE,
+        second=0,
+        microsecond=0,
     )
     if target <= now:
         target += timedelta(days=1)
@@ -48,7 +51,8 @@ async def daily_restart_loop(
         next_restart = datetime.now(NY_TZ) + timedelta(seconds=wait_secs)
         logger.info(
             "Daily restart scheduled for %s (in %.0f seconds)",
-            next_restart.strftime("%Y-%m-%d %H:%M %Z"), wait_secs,
+            next_restart.strftime("%Y-%m-%d %H:%M %Z"),
+            wait_secs,
         )
 
         try:

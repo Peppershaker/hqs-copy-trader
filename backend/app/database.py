@@ -21,6 +21,7 @@ _session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
 def get_engine():
+    """Return the async SQLAlchemy engine, creating it on first call."""
     global _engine
     if _engine is None:
         config = get_config()
@@ -33,6 +34,7 @@ def get_engine():
 
 
 def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Return the async session factory, creating it on first call."""
     global _session_factory
     if _session_factory is None:
         _session_factory = async_sessionmaker(

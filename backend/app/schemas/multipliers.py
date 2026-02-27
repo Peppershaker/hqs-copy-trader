@@ -8,10 +8,14 @@ from pydantic import BaseModel, Field
 
 
 class SymbolMultiplierUpdate(BaseModel):
+    """Request schema for updating a symbol-specific multiplier."""
+
     multiplier: float = Field(gt=0)
 
 
 class SymbolMultiplierResponse(BaseModel):
+    """Response schema for a symbol-specific multiplier."""
+
     id: int
     follower_id: str
     symbol: str

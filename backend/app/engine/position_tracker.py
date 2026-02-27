@@ -34,6 +34,7 @@ class PositionTracker:
         multiplier_mgr: MultiplierManager,
         notifier: NotificationService,
     ) -> None:
+        """Initialize the position tracker with its dependencies."""
         self._das = das_service
         self._multiplier_mgr = multiplier_mgr
         self._notifier = notifier
@@ -113,11 +114,11 @@ class PositionTracker:
             positions: list[dict[str, Any]] = []
             for pos in client.positions:
                 entry = self._serialize_position(pos)
-                entry["effective_multiplier"] = (
-                    self._multiplier_mgr.get_effective(fid, pos.symbol)
+                entry["effective_multiplier"] = self._multiplier_mgr.get_effective(
+                    fid, pos.symbol
                 )
-                entry["multiplier_source"] = (
-                    self._multiplier_mgr.get_source(fid, pos.symbol)
+                entry["multiplier_source"] = self._multiplier_mgr.get_source(
+                    fid, pos.symbol
                 )
                 positions.append(entry)
             snapshot["followers"][fid] = positions

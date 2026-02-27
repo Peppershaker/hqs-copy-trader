@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize database
     await init_db()
-    logger.info("Database initialized at %s", config.db_path)
+    logger.info("Database initialized at %s", config.resolved_db_path)
 
     # Load persisted env vars from DB and apply to running process
     try:
@@ -77,7 +77,9 @@ async def lifespan(app: FastAPI):
 
         factory = get_session_factory()
         async with factory() as session:
-            result = await session.execute(sa_select(EnvConfig).where(EnvConfig.id == 1))
+            result = await session.execute(
+                sa_select(EnvConfig).where(EnvConfig.id == 1)
+            )
             env_row = result.scalar_one_or_none()
             if env_row and env_row.content.strip():
                 applied = apply_env_text(env_row.content)

@@ -39,6 +39,7 @@ class LocateReplicator:
         blacklist_mgr: BlacklistManager,
         notifier: NotificationService,
     ) -> None:
+        """Initialize the locate replicator with its dependencies."""
         self._das = das_service
         self._multiplier_mgr = multiplier_mgr
         self._blacklist_mgr = blacklist_mgr
@@ -72,7 +73,8 @@ class LocateReplicator:
         if self._blacklist_mgr.is_blacklisted(follower_id, symbol):
             logger.debug(
                 "Skipping locate for %s on %s: symbol is blacklisted",
-                symbol, follower_id,
+                symbol,
+                follower_id,
             )
             return
 
@@ -98,7 +100,11 @@ class LocateReplicator:
 
         logger.info(
             "Scanning locates for %s on %s: target=%d (master=%d x%.2f)",
-            symbol, follower_id, target_qty, master_qty, multiplier,
+            symbol,
+            follower_id,
+            target_qty,
+            master_qty,
+            multiplier,
         )
 
         try:
@@ -117,8 +123,12 @@ class LocateReplicator:
                 logger.debug(
                     "Locate scan for %s on %s: follower_price=%.4f "
                     "master_price=%.4f diff=%.4f max_delta=%.4f",
-                    symbol, follower_id,
-                    follower_price, master_price, price_diff, max_delta,
+                    symbol,
+                    follower_id,
+                    follower_price,
+                    master_price,
+                    price_diff,
+                    max_delta,
                 )
 
                 await self._update_locate_record(
@@ -159,7 +169,8 @@ class LocateReplicator:
                 # No locates available — start retry loop
                 logger.debug(
                     "No locates available for %s on %s — starting retry loop",
-                    symbol, follower_id,
+                    symbol,
+                    follower_id,
                 )
                 await self._start_retry(
                     locate_map_id,
@@ -176,7 +187,9 @@ class LocateReplicator:
             await self._update_locate_status(locate_map_id, "failed")
             logger.error(
                 "Locate scan failed for %s on %s: %s",
-                symbol, follower_id, e,
+                symbol,
+                follower_id,
+                e,
             )
 
     async def _accept_locate(
@@ -196,7 +209,8 @@ class LocateReplicator:
             await self._update_locate_status(locate_map_id, "accepted")
             logger.info(
                 "Auto-accepted locate for %s on %s",
-                symbol, follower_id,
+                symbol,
+                follower_id,
             )
             await self._notifier.broadcast(
                 "locate_accepted",
@@ -210,7 +224,9 @@ class LocateReplicator:
             await self._update_locate_status(locate_map_id, "failed")
             logger.error(
                 "Failed to accept locate for %s on %s: %s",
-                symbol, follower_id, e,
+                symbol,
+                follower_id,
+                e,
             )
 
     async def _prompt_user(
@@ -303,7 +319,10 @@ class LocateReplicator:
                         "alert",
                         {
                             "level": "warn",
-                            "message": f"Locate retry timed out for {symbol} on {follower_id}",
+                            "message": (
+                                f"Locate retry timed out for "
+                                f"{symbol} on {follower_id}"
+                            ),
                         },
                     )
             except asyncio.CancelledError:
@@ -312,7 +331,9 @@ class LocateReplicator:
                 await self._update_locate_status(locate_map_id, "failed")
                 logger.error(
                     "Locate retry failed for %s on %s: %s",
-                    symbol, follower_id, e,
+                    symbol,
+                    follower_id,
+                    e,
                 )
             finally:
                 # Only remove if this task is still the registered one
@@ -334,7 +355,8 @@ class LocateReplicator:
         await self._update_locate_status(locate_map_id, "accepted")
         logger.info(
             "User accepted locate for %s on %s",
-            prompt["symbol"], prompt["follower_id"],
+            prompt["symbol"],
+            prompt["follower_id"],
         )
 
         # Notify UI to tell user to manually enter the position
@@ -344,8 +366,11 @@ class LocateReplicator:
                 "locate_map_id": locate_map_id,
                 "follower_id": prompt["follower_id"],
                 "symbol": prompt["symbol"],
-                "message": f"Locates secured for {prompt['symbol']} on {prompt['follower_id']}. "
-                f"Please manually enter the position.",
+                "message": (
+                    f"Locates secured for {prompt['symbol']}"
+                    f" on {prompt['follower_id']}."
+                    f" Please manually enter the position."
+                ),
             },
         )
 
@@ -380,7 +405,8 @@ class LocateReplicator:
 
         logger.info(
             "User rejected locate for %s on %s — symbol blacklisted",
-            prompt["symbol"], prompt["follower_id"],
+            prompt["symbol"],
+            prompt["follower_id"],
         )
 
         await self._notifier.broadcast(

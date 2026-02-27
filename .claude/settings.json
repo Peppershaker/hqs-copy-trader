@@ -8,7 +8,20 @@
       "Bash(grep -n \"\\\\[order\\\\]\\\\|\\\\[system\\\\]\" /home/victor/code/das_auto_order/backend/app/engine/*.py /home/victor/code/das_auto_order/backend/app/services/*.py)",
       "Bash(python3 -c \"import das_bridge; print\\(das_bridge.__file__\\)\")",
       "Bash(python3 -c \"from dataclasses import asdict; from src.das_bridge.domain.positions import Position; import inspect; print\\(inspect.getmembers\\(Position, predicate=inspect.ismethod\\)\\); print\\(''\\\\n---\\\\n''\\); print\\(asdict.__doc__\\)\")",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(npx next build)",
+      "Bash(python -m ruff check app/api/dev.py)",
+      "Bash(python -m mypy app/api/dev.py)",
+      "Bash(python -m pyright app/api/dev.py)",
+      "Bash(npx pyright app/api/dev.py)",
+      "Bash(python -m ruff check app/)",
+      "Bash(python -m ruff check app/ --fix)",
+      "Bash(python -m ruff format app/)",
+      "Read(//home/victor/code/das_auto_order/backend/**)",
+      "Bash(python -m ruff check app/ --select E501 --output-format json)",
+      "Bash(python -c \":*)",
+      "Bash(python -m ruff check app/ --select D,E501 --output-format json)",
+      "Bash(python -m ruff check --select D,E501 --config 'lint.pydocstyle.convention = \"\"google\"\"' app/schemas/accounts.py app/schemas/blacklist.py app/schemas/locates.py app/schemas/multipliers.py app/schemas/orders.py app/services/das_service.py app/services/log_buffer.py app/services/notification_service.py)"
     ]
   }
 }

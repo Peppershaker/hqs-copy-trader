@@ -16,9 +16,10 @@ logger = logging.getLogger(__name__)
 
 
 class NotificationService:
-    """Manages WebSocket connections and broadcasts messages to all connected clients."""
+    """Manage WebSocket connections and broadcast messages."""
 
     def __init__(self) -> None:
+        """Initialize with an empty connection list."""
         self._connections: list[WebSocket] = []
         self._lock = asyncio.Lock()
 
@@ -65,4 +66,5 @@ class NotificationService:
 
     @property
     def client_count(self) -> int:
+        """Return the number of connected WebSocket clients."""
         return len(self._connections)

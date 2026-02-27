@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field
 
 
 class MasterConfigCreate(BaseModel):
+    """Request schema for creating a master account configuration."""
+
     broker_id: str
     host: str
     port: int = Field(ge=1, le=65535)
@@ -20,6 +22,8 @@ class MasterConfigCreate(BaseModel):
 
 
 class MasterConfigResponse(BaseModel):
+    """Response schema for a master account configuration."""
+
     id: int
     broker_id: str
     host: str
@@ -36,7 +40,11 @@ class MasterConfigResponse(BaseModel):
 
 
 class FollowerCreate(BaseModel):
-    id: str = Field(min_length=1, description="Unique follower identifier (e.g., 'acct-cobra-2')")
+    """Request schema for creating a follower account."""
+
+    id: str = Field(
+        min_length=1, description="Unique follower identifier (e.g., 'acct-cobra-2')"
+    )
     name: str = Field(min_length=1, description="Display name")
     broker_id: str
     host: str
@@ -53,6 +61,8 @@ class FollowerCreate(BaseModel):
 
 
 class FollowerUpdate(BaseModel):
+    """Request schema for updating a follower account."""
+
     name: str | None = None
     broker_id: str | None = None
     host: str | None = None
@@ -69,6 +79,8 @@ class FollowerUpdate(BaseModel):
 
 
 class FollowerResponse(BaseModel):
+    """Response schema for a follower account."""
+
     id: str
     name: str
     broker_id: str
@@ -89,4 +101,6 @@ class FollowerResponse(BaseModel):
 
 
 class MultiplierUpdate(BaseModel):
+    """Request schema for updating a follower's base multiplier."""
+
     base_multiplier: float = Field(gt=0)

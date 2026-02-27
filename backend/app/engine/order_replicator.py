@@ -31,8 +31,9 @@ logger = logging.getLogger(__name__)
 
 
 class OrderReplicator:
-    """Submits, cancels, and replaces orders on follower accounts
-    based on master order events.
+    """Submits, cancels, and replaces orders on follower accounts.
+
+    Based on master order events.
     """
 
     def __init__(
@@ -42,6 +43,7 @@ class OrderReplicator:
         blacklist_mgr: BlacklistManager,
         notifier: NotificationService,
     ) -> None:
+        """Initialize the order replicator with its dependencies."""
         self._das = das_service
         self._multiplier_mgr = multiplier_mgr
         self._blacklist_mgr = blacklist_mgr
@@ -61,7 +63,12 @@ class OrderReplicator:
         logger.debug(
             "Scale qty: follower=%s symbol=%s master_qty=%d "
             "multiplier=%.4f source=%s -> %d",
-            follower_id, symbol, quantity, multiplier, source, result,
+            follower_id,
+            symbol,
+            quantity,
+            multiplier,
+            source,
+            result,
         )
         return result
 
@@ -93,8 +100,11 @@ class OrderReplicator:
 
         logger.debug(
             "Submitting %s to %s: symbol=%s side=%s qty=%d",
-            type(master_order).__name__, follower_id,
-            symbol, master_order.side, scaled_qty,
+            type(master_order).__name__,
+            follower_id,
+            symbol,
+            master_order.side,
+            scaled_qty,
         )
 
         try:
@@ -103,14 +113,18 @@ class OrderReplicator:
             if result and result.is_rejected:
                 logger.error(
                     "Order rejected for %s on %s: %s",
-                    symbol, follower_id, result.message,
+                    symbol,
+                    follower_id,
+                    result.message,
                 )
                 await self._notifier.broadcast(
                     "alert",
                     {
                         "level": "error",
                         "message": (
-                            f"Order rejected for {symbol} on {follower_id}: {result.message}"
+                            f"Order rejected for {symbol}"
+                            f" on {follower_id}:"
+                            f" {result.message}"
                         ),
                     },
                 )
@@ -127,8 +141,12 @@ class OrderReplicator:
                 logger.info(
                     "Replicated %s order to %s: qty=%d (master=%d) "
                     "master_oid=%s follower_oid=%s multiplier=%.4f",
-                    symbol, follower_id, scaled_qty, master_order.quantity,
-                    master_order_id, follower_order_id,
+                    symbol,
+                    follower_id,
+                    scaled_qty,
+                    master_order.quantity,
+                    master_order_id,
+                    follower_order_id,
                     self._multiplier_mgr.get_effective(follower_id, symbol),
                 )
                 return follower_order_id
@@ -136,13 +154,18 @@ class OrderReplicator:
         except Exception as e:
             logger.error(
                 "Failed to replicate %s order to %s: %s",
-                symbol, follower_id, e,
+                symbol,
+                follower_id,
+                e,
             )
             await self._notifier.broadcast(
                 "alert",
                 {
                     "level": "error",
-                    "message": f"Order replication failed for {symbol} on {follower_id}: {e}",
+                    "message": (
+                        f"Order replication failed for "
+                        f"{symbol} on {follower_id}: {e}"
+                    ),
                 },
             )
 
@@ -236,13 +259,16 @@ class OrderReplicator:
                     symbol = order.symbol if order else "UNKNOWN"
                     logger.info(
                         "Cancelled %s order on %s (follower_oid=%s)",
-                        symbol, follower_id, follower_order_id,
+                        symbol,
+                        follower_id,
+                        follower_order_id,
                     )
             except Exception as e:
                 results[follower_id] = False
                 logger.error(
                     "Failed to cancel order on %s: %s",
-                    follower_id, e,
+                    follower_id,
+                    e,
                 )
 
         return results
@@ -276,7 +302,9 @@ class OrderReplicator:
                 # Scale the new quantity
                 scaled_qty = order.quantity
                 if new_quantity is not None:
-                    scaled_qty = self._scale_quantity(new_quantity, follower_id, order.symbol)
+                    scaled_qty = self._scale_quantity(
+                        new_quantity, follower_id, order.symbol
+                    )
 
                 success = await client.replace_order(
                     follower_order_id,
@@ -288,13 +316,17 @@ class OrderReplicator:
                 if success:
                     logger.info(
                         "Replaced %s order on %s: qty=%d price=%s",
-                        order.symbol, follower_id, scaled_qty, new_price,
+                        order.symbol,
+                        follower_id,
+                        scaled_qty,
+                        new_price,
                     )
             except Exception as e:
                 results[follower_id] = False
                 logger.error(
                     "Failed to replace order on %s: %s",
-                    follower_id, e,
+                    follower_id,
+                    e,
                 )
 
         return results

@@ -30,10 +30,14 @@ router = APIRouter(prefix="/api", tags=["env-config"])
 
 
 class EnvConfigSave(BaseModel):
+    """Request body for saving .env content."""
+
     content: str
 
 
 class EnvConfigResponse(BaseModel):
+    """Response body containing .env content and metadata."""
+
     content: str
     updated_at: str | None = None
     parsed_keys: list[str] = []
@@ -95,7 +99,9 @@ def _validate_env_content(content: str) -> None:
     try:
         servers = json.loads(das_servers_raw)
     except json.JSONDecodeError as e:
-        raise HTTPException(status_code=400, detail=f"DAS_SERVERS is not valid JSON: {e}")
+        raise HTTPException(
+            status_code=400, detail=f"DAS_SERVERS is not valid JSON: {e}"
+        )
 
     if not isinstance(servers, list):
         raise HTTPException(status_code=400, detail="DAS_SERVERS must be a JSON array")

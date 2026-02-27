@@ -198,4 +198,22 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ names }),
     }),
+  downloadLogDirs: async (names: string[]) => {
+    const url = `${API_BASE}/api/dev/log-dirs/download`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ names }),
+    });
+    if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+    const blob = await res.blob();
+    const disposition = res.headers.get("Content-Disposition");
+    const filename =
+      disposition?.match(/filename="?([^"]+)"?/)?.[1] ?? "log_dirs.zip";
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  },
 };

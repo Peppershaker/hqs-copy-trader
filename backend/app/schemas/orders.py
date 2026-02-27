@@ -8,6 +8,8 @@ from pydantic import BaseModel
 
 
 class OrderReplicationResponse(BaseModel):
+    """Response schema for an order replication record."""
+
     id: int
     master_order_token: int
     master_order_id: int | None

@@ -5,10 +5,15 @@ Provides database reset, in-memory log buffer, and log directory management.
 
 from __future__ import annotations
 
+import io
 import pathlib
 import shutil
+import zipfile
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from app.database import Base, get_engine
 from app.services.log_buffer import log_buffer
@@ -18,9 +23,13 @@ _LOG_BASE = pathlib.Path(__file__).resolve().parent.parent.parent / "logs"
 router = APIRouter(prefix="/api/dev", tags=["dev"])
 
 
+class _LogDirNamesBody(BaseModel):
+    names: list[str]
+
+
 @router.post("/reset-db")
 async def reset_database():
-    """Drop all tables and recreate them.  **Destroys all data.**"""
+    """Drop all tables and recreate them (destroys all data)."""
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -52,7 +61,7 @@ def _dir_size(path: pathlib.Path) -> int:
 
 
 @router.get("/log-dirs")
-async def list_log_dirs():
+async def list_log_dirs() -> dict[str, list[dict[str, Any]]]:
     """List all log run directories with their sizes."""
     if not _LOG_BASE.is_dir():
         return {"directories": []}
@@ -73,18 +82,44 @@ async def list_log_dirs():
     }
 
 
+@router.post("/log-dirs/download")
+async def download_log_dirs(body: _LogDirNamesBody) -> StreamingResponse:
+    """Zip one or more log run directories and return the archive."""
+    if not body.names:
+        raise HTTPException(400, "No directory names provided")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name in body.names:
+            target = _LOG_BASE / name
+            # Prevent path traversal
+            if target.resolve().parent != _LOG_BASE.resolve():
+                continue
+            if target.is_dir():
+                for file in sorted(target.iterdir()):
+                    if file.is_file():
+                        zf.write(file, f"{name}/{file.name}")
+
+    buf.seek(0)
+    filename = body.names[0] if len(body.names) == 1 else "log_dirs"
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}.zip"'},
+    )
+
+
 @router.post("/log-dirs/delete")
-async def delete_log_dirs(body: dict):
+async def delete_log_dirs(body: _LogDirNamesBody) -> dict[str, list[str]]:
     """Delete one or more log run directories by name."""
-    names: list[str] = body.get("names", [])
-    if not names:
+    if not body.names:
         raise HTTPException(400, "No directory names provided")
 
     deleted: list[str] = []
-    for name in names:
+    for name in body.names:
         target = _LOG_BASE / name
         # Prevent path traversal
-        if not target.resolve().parent == _LOG_BASE.resolve():
+        if target.resolve().parent != _LOG_BASE.resolve():
             continue
         if target.is_dir():
             shutil.rmtree(target)

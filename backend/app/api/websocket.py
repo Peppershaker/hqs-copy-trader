@@ -24,6 +24,7 @@ def set_ws_dependencies(
     notifier_getter: Callable[[], NotificationService],
     engine_getter: Callable[[], ReplicationEngine],
 ) -> None:
+    """Inject the notifier and engine getters used by the WebSocket endpoint."""
     global _get_notifier, _get_engine
     _get_notifier = notifier_getter
     _get_engine = engine_getter

@@ -21,6 +21,7 @@ def set_service_getters(
     das_getter: Callable[[], DASService],
     engine_getter: Callable[[], ReplicationEngine],
 ) -> None:
+    """Inject the DAS service and engine getters used by system endpoints."""
     global _get_das_service, _get_engine
     _get_das_service = das_getter
     _get_engine = engine_getter
@@ -103,16 +104,22 @@ async def start_system() -> dict[str, Any]:
     factory = get_session_factory()
     async with factory() as session:
         # Re-apply env config from DB
-        env_result = await session.execute(sa_select(EnvConfig).where(EnvConfig.id == 1))
+        env_result = await session.execute(
+            sa_select(EnvConfig).where(EnvConfig.id == 1)
+        )
         env_row = env_result.scalar_one_or_none()
         if env_row and env_row.content.strip():
             apply_env_text(env_row.content)
 
         # Build broker_id → server config lookup from DAS_SERVERS
-        das_server_map = {s.broker_id.lower(): s for s in get_config().parsed_das_servers}
+        das_server_map = {
+            s.broker_id.lower(): s for s in get_config().parsed_das_servers
+        }
 
         # Load master
-        result = await session.execute(sa_select(MasterConfig).where(MasterConfig.id == 1))
+        result = await session.execute(
+            sa_select(MasterConfig).where(MasterConfig.id == 1)
+        )
         master = result.scalar_one_or_none()
         if not master:
             raise HTTPException(status_code=400, detail="Master account not configured")
@@ -130,7 +137,9 @@ async def start_system() -> dict[str, Any]:
         )
 
         # Load followers
-        result = await session.execute(sa_select(Follower).where(Follower.enabled.is_(True)))
+        result = await session.execute(
+            sa_select(Follower).where(Follower.enabled.is_(True))
+        )
         follower_configs: dict[str, dict[str, Any]] = {}
         for f in result.scalars():
             fserver = das_server_map.get(f.broker_id.lower())

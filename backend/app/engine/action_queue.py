@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class QueuedActionType(str, Enum):
+    """Types of actions that can be queued for disconnected followers."""
     ORDER_SUBMIT = "order_submit"
     ORDER_CANCEL = "order_cancel"
     ORDER_REPLACE = "order_replace"
@@ -35,11 +36,14 @@ class QueuedAction:
     # Payload differs by action_type;
     # ORDER_SUBMIT  → {"master_order_id": int}
     # ORDER_CANCEL  → {"master_order_id": int}
-    # ORDER_REPLACE → {"master_order_id": int, "new_quantity": int|None, "new_price": str|None}
-    # LOCATE        → {"master_qty": int, "master_price": float, "follower_config": {...}}
+    # ORDER_REPLACE → {"master_order_id": int,
+    #   "new_quantity": int|None, "new_price": str|None}
+    # LOCATE → {"master_qty": int, "master_price": float,
+    #   "follower_config": {...}}
     payload: dict[str, Any] = field(default_factory=lambda: {})
 
     def to_dict(self) -> dict[str, Any]:
+        """Convert to a plain dictionary with serialized enum values."""
         d = asdict(self)
         d["action_type"] = self.action_type.value
         return d
@@ -49,6 +53,7 @@ class ActionQueue:
     """Per-follower queue of deferred actions."""
 
     def __init__(self) -> None:
+        """Initialize an empty action queue."""
         # follower_id → list of queued actions (ordered by timestamp)
         self._queues: dict[str, list[QueuedAction]] = {}
         self._counter = 0
@@ -66,6 +71,7 @@ class ActionQueue:
         symbol: str,
         payload: dict[str, Any] | None = None,
     ) -> QueuedAction:
+        """Add an action to the queue for a follower."""
         action = QueuedAction(
             id=self._next_id(),
             follower_id=follower_id,
@@ -85,12 +91,15 @@ class ActionQueue:
     # ---- retrieval ----
 
     def get_pending(self, follower_id: str) -> list[QueuedAction]:
+        """Return all pending actions for a follower."""
         return list(self._queues.get(follower_id, []))
 
     def get_all_pending(self) -> dict[str, list[QueuedAction]]:
+        """Return all pending actions grouped by follower ID."""
         return {fid: list(q) for fid, q in self._queues.items() if q}
 
     def has_pending(self, follower_id: str) -> bool:
+        """Check if a follower has any pending queued actions."""
         return bool(self._queues.get(follower_id))
 
     # ---- removal ----
@@ -110,9 +119,11 @@ class ActionQueue:
         return self._queues.pop(follower_id, [])
 
     def clear_all(self) -> None:
+        """Clear all queued actions for every follower."""
         self._queues.clear()
 
     # ---- serialisation ----
 
     def pending_summary(self, follower_id: str) -> list[dict[str, Any]]:
+        """Return serialized pending actions for a follower."""
         return [a.to_dict() for a in self.get_pending(follower_id)]

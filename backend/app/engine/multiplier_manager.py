@@ -26,6 +26,7 @@ class MultiplierManager:
     """Resolves effective multiplier per follower per symbol."""
 
     def __init__(self) -> None:
+        """Initialize empty in-memory multiplier caches."""
         # In-memory caches for fast access (hot path during replication)
         self._base_multipliers: dict[str, float] = {}  # follower_id → base
         self._symbol_overrides: dict[

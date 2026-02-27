@@ -19,6 +19,7 @@ class BlacklistManager:
     """Manages the per-follower, per-symbol blacklist."""
 
     def __init__(self) -> None:
+        """Initialize an empty in-memory blacklist cache."""
         # (follower_id, symbol) → reason
         self._blacklist: dict[tuple[str, str], str] = {}
 

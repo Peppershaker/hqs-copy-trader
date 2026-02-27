@@ -23,6 +23,7 @@ class DASService:
     """
 
     def __init__(self) -> None:
+        """Initialize the DAS service with empty client registries."""
         self._master_client: DASClient | None = None
         self._follower_clients: dict[str, DASClient] = {}
         self._master_config: dict[str, Any] | None = None
@@ -31,10 +32,12 @@ class DASService:
 
     @property
     def master_client(self) -> DASClient | None:
+        """Return the master DAS client, if configured."""
         return self._master_client
 
     @property
     def follower_clients(self) -> dict[str, DASClient]:
+        """Return a shallow copy of the follower client registry."""
         return dict(self._follower_clients)
 
     def get_follower_client(self, follower_id: str) -> DASClient | None:
@@ -50,6 +53,7 @@ class DASService:
 
     @property
     def is_running(self) -> bool:
+        """Return whether the DAS service is currently running."""
         return self._running
 
     def _build_config(self, cfg: dict[str, Any]) -> GlobalConfig:

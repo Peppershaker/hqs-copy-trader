@@ -1,0 +1,1 @@
+"""DAS copy trader application."""

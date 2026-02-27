@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import * as Tabs from "@radix-ui/react-tabs";
 import { api } from "@/lib/api-client";
 import { useAppStore } from "@/stores/app-store";
 import type { LogEntry, LogDirectory } from "@/lib/types";
@@ -38,7 +39,7 @@ function DatabaseResetPanel() {
       <h2 className="text-base font-semibold mb-1">Database</h2>
       <p className="text-xs text-muted-foreground mb-3">
         Drop all tables and recreate them. This destroys all configuration,
-        followers, audit logs, and order history.
+        followers, and order history.
       </p>
 
       {!confirming ? (
@@ -186,7 +187,7 @@ function LogViewerPanel() {
   ).length;
 
   return (
-    <div className="rounded-lg border border-border bg-card flex flex-col" style={{ height: "calc(100vh - 280px)", minHeight: "400px" }}>
+    <div className="rounded-lg border border-border bg-card flex flex-col" style={{ height: "calc(100vh - 200px)", minHeight: "400px" }}>
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-2">
         <div className="flex items-center gap-1">
@@ -361,6 +362,7 @@ function LogDirectoryPanel() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -410,13 +412,25 @@ function LogDirectoryPanel() {
     }
   };
 
+  const handleDownload = async () => {
+    if (selected.size === 0) return;
+    setDownloading(true);
+    try {
+      await api.downloadLogDirs(Array.from(selected));
+    } catch {
+      // ignore
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const totalSize = dirs.reduce((sum, d) => sum + d.size_bytes, 0);
   const selectedSize = dirs
     .filter((d) => selected.has(d.name))
     .reduce((sum, d) => sum + d.size_bytes, 0);
 
   return (
-    <div className="rounded-lg border border-border bg-card">
+    <div className="rounded-lg border border-border bg-card" style={{ height: "calc(100vh - 200px)", minHeight: "400px", display: "flex", flexDirection: "column" }}>
       <div className="flex items-center justify-between border-b border-border px-4 py-2">
         <div className="flex items-center gap-2">
           <h2 className="text-base font-semibold">Log Files</h2>
@@ -434,20 +448,31 @@ function LogDirectoryPanel() {
             Refresh
           </button>
           {selected.size > 0 && (
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="text-xs text-destructive hover:text-destructive/80 disabled:opacity-50"
-            >
-              {deleting
-                ? "Deleting..."
-                : `Delete ${selected.size} (${formatBytes(selectedSize)})`}
-            </button>
+            <>
+              <button
+                onClick={handleDownload}
+                disabled={downloading}
+                className="text-xs text-primary hover:text-primary/80 disabled:opacity-50"
+              >
+                {downloading
+                  ? "Downloading..."
+                  : `Download ${selected.size} (${formatBytes(selectedSize)})`}
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="text-xs text-destructive hover:text-destructive/80 disabled:opacity-50"
+              >
+                {deleting
+                  ? "Deleting..."
+                  : `Delete ${selected.size} (${formatBytes(selectedSize)})`}
+              </button>
+            </>
           )}
         </div>
       </div>
 
-      <div className="max-h-64 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto">
         {loading ? (
           <p className="text-xs text-muted-foreground text-center py-6">
             Loading...
@@ -514,13 +539,44 @@ export default function DevPage() {
       <div>
         <h1 className="text-xl font-bold">Developer Tools</h1>
         <p className="text-sm text-muted-foreground">
-          Database management and live log viewer
+          Live log viewer, log file management, and database tools
         </p>
       </div>
 
-      <DatabaseResetPanel />
-      <LogDirectoryPanel />
-      <LogViewerPanel />
+      <Tabs.Root defaultValue="logs">
+        <Tabs.List className="flex border-b border-border gap-0">
+          <Tabs.Trigger
+            value="logs"
+            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground transition-colors"
+          >
+            Logs
+          </Tabs.Trigger>
+          <Tabs.Trigger
+            value="log-files"
+            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground transition-colors"
+          >
+            Log Files
+          </Tabs.Trigger>
+          <Tabs.Trigger
+            value="database"
+            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground transition-colors"
+          >
+            Database
+          </Tabs.Trigger>
+        </Tabs.List>
+
+        <Tabs.Content value="logs" className="pt-4">
+          <LogViewerPanel />
+        </Tabs.Content>
+
+        <Tabs.Content value="log-files" className="pt-4">
+          <LogDirectoryPanel />
+        </Tabs.Content>
+
+        <Tabs.Content value="database" className="pt-4">
+          <DatabaseResetPanel />
+        </Tabs.Content>
+      </Tabs.Root>
     </div>
   );
 }

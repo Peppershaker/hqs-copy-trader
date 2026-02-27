@@ -17,7 +17,9 @@ class LocateMap(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     master_locate_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    follower_id: Mapped[str] = mapped_column(String, ForeignKey("followers.id"), nullable=False)
+    follower_id: Mapped[str] = mapped_column(
+        String, ForeignKey("followers.id"), nullable=False
+    )
     symbol: Mapped[str] = mapped_column(String, nullable=False)
     master_qty: Mapped[int] = mapped_column(Integer, nullable=False)
     target_qty: Mapped[int] = mapped_column(Integer, nullable=False)

@@ -24,9 +24,15 @@ class Follower(Base):
     password: Mapped[str] = mapped_column(String, nullable=False)
     account_id: Mapped[str] = mapped_column(String, nullable=False)
     base_multiplier: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
-    max_locate_price_delta: Mapped[float] = mapped_column(Float, nullable=False, default=0.01)
-    locate_retry_timeout: Mapped[int] = mapped_column(Integer, nullable=False, default=300)
-    auto_accept_locates: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    max_locate_price_delta: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.01
+    )
+    locate_retry_timeout: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=300
+    )
+    auto_accept_locates: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     locate_routes: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

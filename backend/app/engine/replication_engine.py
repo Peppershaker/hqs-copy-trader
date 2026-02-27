@@ -74,6 +74,7 @@ class ReplicationEngine:
         das_service: DASService,
         notifier: NotificationService,
     ) -> None:
+        """Initialize the engine with DAS service and notifier."""
         self._das = das_service
         self._notifier = notifier
 
@@ -116,29 +117,37 @@ class ReplicationEngine:
 
     @property
     def action_queue(self) -> ActionQueue:
+        """Return the disconnected-follower action queue."""
         return self._action_queue
 
     @property
     def multiplier_manager(self) -> MultiplierManager:
+        """Return the multiplier manager sub-engine."""
         return self._multiplier_mgr
 
     @property
     def blacklist_manager(self) -> BlacklistManager:
+        """Return the blacklist manager sub-engine."""
         return self._blacklist_mgr
 
     @property
     def order_replicator(self) -> OrderReplicator:
+        """Return the order replicator sub-engine."""
         return self._order_replicator
 
     @property
     def locate_replicator(self) -> LocateReplicator:
+        """Return the locate replicator sub-engine."""
         return self._locate_replicator
 
     @property
     def position_tracker(self) -> PositionTracker:
+        """Return the position tracker sub-engine."""
         return self._position_tracker
 
-    async def start(self, follower_configs: dict[str, dict[str, Any]] | None = None) -> None:
+    async def start(
+        self, follower_configs: dict[str, dict[str, Any]] | None = None
+    ) -> None:
         """Initialize state and subscribe to master events."""
         if self._running:
             return
@@ -189,7 +198,6 @@ class ReplicationEngine:
 
     def _subscribe_to_master(self, master: DASClient) -> None:
         """Subscribe to master order/locate events."""
-
         # Order accepted → replicate to followers
         unsub = master.on(OrderAcceptedEvent, _fire(self._on_master_order_accepted))
         self._unsubscribers.append(unsub)
@@ -203,7 +211,9 @@ class ReplicationEngine:
         self._unsubscribers.append(unsub)
 
         # Locate filled → replicate to followers
-        unsub = master.on(LocateOrderUpdatedEvent, _fire(self._on_master_locate_updated))
+        unsub = master.on(
+            LocateOrderUpdatedEvent, _fire(self._on_master_locate_updated)
+        )
         self._unsubscribers.append(unsub)
 
         logger.info("Subscribed to master events")
@@ -216,7 +226,9 @@ class ReplicationEngine:
                 _fid: str,
             ) -> Callable[[PositionOpenedEvent], None]:
                 def handler(event: PositionOpenedEvent) -> None:
-                    asyncio.ensure_future(self._on_follower_position_opened(event, _fid))
+                    asyncio.ensure_future(
+                        self._on_follower_position_opened(event, _fid)
+                    )
 
                 return handler
 
@@ -244,8 +256,12 @@ class ReplicationEngine:
 
         logger.info(
             "Master order ACCEPTED: id=%s symbol=%s side=%s qty=%d type=%s route=%s",
-            master_order_id, order.symbol, order.side, order.quantity,
-            type(order).__name__, getattr(order, "route", "N/A"),
+            master_order_id,
+            order.symbol,
+            order.side,
+            order.quantity,
+            type(order).__name__,
+            getattr(order, "route", "N/A"),
         )
 
         followers = self._das.follower_clients
@@ -256,7 +272,8 @@ class ReplicationEngine:
             if self._blacklist_mgr.is_blacklisted(fid, order.symbol):
                 logger.debug(
                     "Skipping follower %s for %s: symbol is blacklisted",
-                    fid, order.symbol,
+                    fid,
+                    order.symbol,
                 )
                 continue
             # If disconnected → queue the action for later replay
@@ -271,7 +288,8 @@ class ReplicationEngine:
                 )
                 logger.warning(
                     "Follower %s offline — queued replication of %s",
-                    fid, order.symbol,
+                    fid,
+                    order.symbol,
                 )
                 await self._notifier.broadcast(
                     "action_queued",
@@ -279,7 +297,10 @@ class ReplicationEngine:
                         "follower_id": fid,
                         "action_type": "order_submit",
                         "symbol": order.symbol,
-                        "message": f"Follower {fid} offline — order for {order.symbol} queued",
+                        "message": (
+                            f"Follower {fid} offline"
+                            f" — order for {order.symbol} queued"
+                        ),
                     },
                 )
                 results[fid] = None
@@ -325,10 +346,16 @@ class ReplicationEngine:
         if order:
             logger.info(
                 "Master order CANCELLED: id=%s symbol=%s side=%s qty=%d",
-                master_order_id, order.symbol, order.side, order.quantity,
+                master_order_id,
+                order.symbol,
+                order.side,
+                order.quantity,
             )
         else:
-            logger.info("Master order CANCELLED: id=%s (order object not found)", master_order_id)
+            logger.info(
+                "Master order CANCELLED: id=%s (order object not found)",
+                master_order_id,
+            )
 
         # Queue cancels for disconnected followers
         for fid, client in self._das.follower_clients.items():
@@ -345,13 +372,14 @@ class ReplicationEngine:
                         "follower_id": fid,
                         "action_type": "order_cancel",
                         "symbol": symbol,
-                        "message": f"Follower {fid} offline — cancel for {symbol} queued",
+                        "message": (
+                            f"Follower {fid} offline"
+                            f" — cancel for {symbol} queued"
+                        ),
                     },
                 )
 
-        results = await self._order_replicator.cancel_follower_orders(
-            master_order_id
-        )
+        results = await self._order_replicator.cancel_follower_orders(master_order_id)
 
         await self._notifier.broadcast(
             "order_cancelled",
@@ -375,7 +403,9 @@ class ReplicationEngine:
 
         logger.info(
             "Master order REPLACED: id=%s symbol=%s new_qty=%d new_price=%s",
-            master_order_id, order.symbol, order.quantity,
+            master_order_id,
+            order.symbol,
+            order.quantity,
             getattr(order, "price", "N/A"),
         )
 
@@ -398,7 +428,10 @@ class ReplicationEngine:
                         "follower_id": fid,
                         "action_type": "order_replace",
                         "symbol": order.symbol,
-                        "message": f"Follower {fid} offline — replace for {order.symbol} queued",
+                        "message": (
+                            f"Follower {fid} offline"
+                            f" — replace for {order.symbol} queued"
+                        ),
                     },
                 )
 
@@ -424,7 +457,8 @@ class ReplicationEngine:
 
         logger.debug(
             "Master locate event: symbol=%s status=%s",
-            getattr(event, "symbol", "?"), getattr(event, "status", "?"),
+            getattr(event, "symbol", "?"),
+            getattr(event, "status", "?"),
         )
 
         # Only process filled locates
@@ -446,7 +480,9 @@ class ReplicationEngine:
 
         logger.info(
             "Master locate FILLED: symbol=%s qty=%d price=%s",
-            symbol, qty, price,
+            symbol,
+            qty,
+            price,
         )
 
         for fid, client in self._das.follower_clients.items():
@@ -468,7 +504,10 @@ class ReplicationEngine:
                         "follower_id": fid,
                         "action_type": "locate",
                         "symbol": symbol,
-                        "message": f"Follower {fid} offline — locate for {symbol} queued",
+                        "message": (
+                            f"Follower {fid} offline"
+                            f" — locate for {symbol} queued"
+                        ),
                     },
                 )
                 continue
@@ -532,7 +571,11 @@ class ReplicationEngine:
             was_connected = self._prev_follower_connected.get(fid, False)
             self._prev_follower_connected[fid] = now_connected
 
-            if now_connected and not was_connected and self._action_queue.has_pending(fid):
+            if (
+                now_connected
+                and not was_connected
+                and self._action_queue.has_pending(fid)
+            ):
                 pending = self._action_queue.pending_summary(fid)
                 logger.info(
                     "Follower %s reconnected with %d queued actions",
@@ -541,7 +584,8 @@ class ReplicationEngine:
                 )
                 logger.info(
                     "Follower %s reconnected — %d queued action(s) ready for replay",
-                    fid, len(pending),
+                    fid,
+                    len(pending),
                 )
                 await self._notifier.broadcast(
                     "queued_actions_available",
@@ -604,13 +648,18 @@ class ReplicationEngine:
                 results[action.id] = {"success": True, **result}
                 logger.info(
                     "Replayed %s for %s on %s",
-                    action.action_type.value, action.symbol, follower_id,
+                    action.action_type.value,
+                    action.symbol,
+                    follower_id,
                 )
             except Exception as e:
                 results[action.id] = {"success": False, "error": str(e)}
                 logger.error(
                     "Failed to replay %s for %s on %s: %s",
-                    action.action_type.value, action.symbol, follower_id, e,
+                    action.action_type.value,
+                    action.symbol,
+                    follower_id,
+                    e,
                 )
 
         await self._notifier.broadcast(
@@ -622,7 +671,9 @@ class ReplicationEngine:
         )
         return {"replayed": len(removed), "results": results}
 
-    async def discard_queued_actions(self, follower_id: str, action_ids: list[str]) -> int:
+    async def discard_queued_actions(
+        self, follower_id: str, action_ids: list[str]
+    ) -> int:
         """Discard (remove without replaying) selected queued actions."""
         removed = self._action_queue.remove(follower_id, set(action_ids))
         return len(removed)
@@ -637,7 +688,9 @@ class ReplicationEngine:
         if action.action_type == QueuedActionType.ORDER_SUBMIT:
             master_order_id = action.payload.get("master_order_id")
             master_order = (
-                master.get_order(master_order_id) if master and master_order_id else None
+                master.get_order(master_order_id)
+                if master and master_order_id
+                else None
             )
             if master_order and master_order_id is not None:
                 follower_oid = await self._order_replicator.replicate_order(
@@ -658,8 +711,10 @@ class ReplicationEngine:
                 cancel_ok = res.get(action.follower_id, False)
                 if not cancel_ok and action.follower_id not in res:
                     logger.debug(
-                        "Cancel replay no-op: follower %s had no mapped order for master_oid=%s",
-                        action.follower_id, master_order_id,
+                        "Cancel replay no-op: follower %s had "
+                        "no mapped order for master_oid=%s",
+                        action.follower_id,
+                        master_order_id,
                     )
                 return {"cancel_result": cancel_ok}
             return {"skipped": True, "reason": "No master order ID"}
@@ -674,8 +729,10 @@ class ReplicationEngine:
                     new_price = Decimal(new_price_str)
                 except Exception:
                     logger.warning(
-                        "Invalid price '%s' in queued replace action %s, skipping price change",
-                        new_price_str, action.id,
+                        "Invalid price '%s' in queued replace "
+                        "action %s, skipping price change",
+                        new_price_str,
+                        action.id,
                     )
             if master_order_id is not None:
                 res = await self._order_replicator.replace_follower_orders(
