@@ -8,12 +8,13 @@ Monitors position changes on both master and follower accounts to:
 from __future__ import annotations
 
 import logging
-from typing import Any
-
-from das_bridge import DASClient
+from typing import TYPE_CHECKING, Any
 
 from app.engine.multiplier_manager import MultiplierManager
 from app.services.notification_service import NotificationService
+
+if TYPE_CHECKING:
+    from app.services.das_service import DASService
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +28,11 @@ class PositionTracker:
 
     def __init__(
         self,
+        das_service: DASService,
         multiplier_mgr: MultiplierManager,
         notifier: NotificationService,
     ) -> None:
+        self._das = das_service
         self._multiplier_mgr = multiplier_mgr
         self._notifier = notifier
 
@@ -38,13 +41,15 @@ class PositionTracker:
         follower_id: str,
         symbol: str,
         follower_qty: int,
-        master_client: DASClient,
     ) -> None:
         """Called when a new position is detected on a follower.
 
         If the master also has a position in the same symbol,
         infer the effective multiplier.
         """
+        master_client = self._das.master_client
+        if not master_client:
+            return
         master_pos = master_client.get_position(symbol)
         if not master_pos or master_pos.quantity == 0:
             return
@@ -73,14 +78,11 @@ class PositionTracker:
                 },
             )
 
-    def get_positions_snapshot(
-        self,
-        master_client: DASClient | None,
-        follower_clients: dict[str, DASClient],
-    ) -> dict[str, Any]:
+    def get_positions_snapshot(self) -> dict[str, Any]:
         """Build a snapshot of all positions for the dashboard."""
         snapshot: dict[str, Any] = {"master": [], "followers": {}}
 
+        master_client = self._das.master_client
         if master_client and master_client.is_running:
             for pos in master_client.positions:
                 unrealized = (
@@ -104,7 +106,7 @@ class PositionTracker:
                     }
                 )
 
-        for fid, client in follower_clients.items():
+        for fid, client in self._das.follower_clients.items():
             if not client.is_running:
                 snapshot["followers"][fid] = []
                 continue

@@ -37,6 +37,10 @@ class DASService:
     def follower_clients(self) -> dict[str, DASClient]:
         return dict(self._follower_clients)
 
+    def get_follower_client(self, follower_id: str) -> DASClient | None:
+        """Get a single follower client by ID."""
+        return self._follower_clients.get(follower_id)
+
     @property
     def is_running(self) -> bool:
         return self._running

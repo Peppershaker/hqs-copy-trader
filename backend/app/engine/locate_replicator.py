@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from das_bridge import DASClient
 
@@ -23,6 +23,9 @@ from app.models.locate_map import LocateMap
 from app.services.audit_service import AuditService
 from app.services.notification_service import NotificationService
 
+if TYPE_CHECKING:
+    from app.services.das_service import DASService
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,11 +34,13 @@ class LocateReplicator:
 
     def __init__(
         self,
+        das_service: DASService,
         multiplier_mgr: MultiplierManager,
         blacklist_mgr: BlacklistManager,
         audit: AuditService,
         notifier: NotificationService,
     ) -> None:
+        self._das = das_service
         self._multiplier_mgr = multiplier_mgr
         self._blacklist_mgr = blacklist_mgr
         self._audit = audit
@@ -46,13 +51,19 @@ class LocateReplicator:
         # Pending prompts: locate_map_id → prompt data
         self._pending_prompts: dict[int, dict[str, Any]] = {}
 
+    def _get_follower(self, follower_id: str) -> DASClient | None:
+        """Get a connected follower client, or None."""
+        client = self._das.get_follower_client(follower_id)
+        if client and client.is_running:
+            return client
+        return None
+
     async def replicate_locate(
         self,
         symbol: str,
         master_qty: int,
         master_price: float,
         follower_id: str,
-        follower_client: DASClient,
         follower_config: dict[str, Any],
     ) -> None:
         """Attempt to replicate a master's locate to a follower.
@@ -64,6 +75,10 @@ class LocateReplicator:
         5. If unavailable → start retry loop
         """
         if self._blacklist_mgr.is_blacklisted(follower_id, symbol):
+            return
+
+        follower_client = self._get_follower(follower_id)
+        if not follower_client:
             return
 
         multiplier = self._multiplier_mgr.get_effective(follower_id, symbol)
@@ -112,7 +127,6 @@ class LocateReplicator:
                     if auto_accept:
                         await self._accept_locate(
                             locate_map_id,
-                            follower_client,
                             cheapest,
                             follower_id,
                             symbol,
@@ -143,7 +157,6 @@ class LocateReplicator:
                 await self._start_retry(
                     locate_map_id,
                     follower_id,
-                    follower_client,
                     symbol,
                     target_qty,
                     master_price,
@@ -164,12 +177,15 @@ class LocateReplicator:
     async def _accept_locate(
         self,
         locate_map_id: int,
-        follower_client: DASClient,
         offer: Any,
         follower_id: str,
         symbol: str,
     ) -> None:
         """Accept a locate offer on the follower."""
+        follower_client = self._get_follower(follower_id)
+        if not follower_client:
+            await self._update_locate_status(locate_map_id, "failed")
+            return
         try:
             result = await follower_client.accept_locate_offer(offer)  # noqa: F841
             await self._update_locate_status(locate_map_id, "accepted")
@@ -232,7 +248,6 @@ class LocateReplicator:
         self,
         locate_map_id: int,
         follower_id: str,
-        follower_client: DASClient,
         symbol: str,
         target_qty: int,
         master_price: float,
@@ -245,6 +260,10 @@ class LocateReplicator:
 
         async def retry_loop() -> None:
             try:
+                follower_client = self._get_follower(follower_id)
+                if not follower_client:
+                    await self._update_locate_status(locate_map_id, "failed")
+                    return
                 result = await follower_client.smart_locate(
                     symbol=symbol,
                     quantity=target_qty,

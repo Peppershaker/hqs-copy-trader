@@ -69,18 +69,21 @@ class ReplicationEngine:
         self._multiplier_mgr = MultiplierManager()
         self._blacklist_mgr = BlacklistManager()
         self._order_replicator = OrderReplicator(
+            das_service,
             self._multiplier_mgr,
             self._blacklist_mgr,
             audit,
             notifier,
         )
         self._locate_replicator = LocateReplicator(
+            das_service,
             self._multiplier_mgr,
             self._blacklist_mgr,
             audit,
             notifier,
         )
         self._position_tracker = PositionTracker(
+            das_service,
             self._multiplier_mgr,
             notifier,
         )
@@ -267,7 +270,7 @@ class ReplicationEngine:
                 continue
 
             follower_oid = await self._order_replicator.replicate_order(
-                order, fid, client, master_order_id=master_order_id
+                order, fid, master_order_id=master_order_id
             )
             results[fid] = follower_oid
 
@@ -323,7 +326,7 @@ class ReplicationEngine:
                 )
 
         results = await self._order_replicator.cancel_follower_orders(
-            master_order_id, self._das.follower_clients
+            master_order_id
         )
 
         await self._notifier.broadcast(
@@ -372,7 +375,6 @@ class ReplicationEngine:
             master_order_id,
             new_quantity=order.quantity,
             new_price=getattr(order, "price", None),
-            follower_clients=self._das.follower_clients,
         )
 
         await self._notifier.broadcast(
@@ -436,7 +438,6 @@ class ReplicationEngine:
                 master_qty=qty,
                 master_price=float(price),
                 follower_id=fid,
-                follower_client=client,
                 follower_config=config,
             )
 
@@ -446,15 +447,10 @@ class ReplicationEngine:
         self, event: PositionOpenedEvent, follower_id: str
     ) -> None:
         """Follower opened a new position — infer multiplier if applicable."""
-        master = self._das.master_client
-        if not master:
-            return
-
         await self._position_tracker.on_follower_position_opened(
             follower_id=follower_id,
             symbol=event.symbol,
             follower_qty=event.initial_quantity,
-            master_client=master,
         )
 
     # --- State push loop ---
@@ -519,10 +515,9 @@ class ReplicationEngine:
     def _build_full_state(self) -> dict[str, Any]:
         """Build the full system state for the UI."""
         master = self._das.master_client
-        followers = self._das.follower_clients
 
         # Positions
-        positions = self._position_tracker.get_positions_snapshot(master, followers)
+        positions = self._position_tracker.get_positions_snapshot()
 
         # Connection status
         status = self._das.get_status()
@@ -557,17 +552,16 @@ class ReplicationEngine:
 
         Returns a summary of results per action id.
         """
-        client = self._das.follower_clients.get(follower_id)
-        if not client or not client.is_running:
+        follower_client = self._das.get_follower_client(follower_id)
+        if not follower_client or not follower_client.is_running:
             return {"error": f"Follower {follower_id} is not connected"}
 
         removed = self._action_queue.remove(follower_id, set(action_ids))
-        master = self._das.master_client
         results: dict[str, dict[str, Any]] = {}
 
         for action in removed:
             try:
-                result = await self._replay_single(action, client, master)
+                result = await self._replay_single(action)
                 results[action.id] = {"success": True, **result}
                 await self._audit.info(
                     "replay",
@@ -602,11 +596,11 @@ class ReplicationEngine:
     async def _replay_single(
         self,
         action: Any,
-        follower_client: DASClient,
-        master: DASClient | None,
     ) -> dict[str, Any]:
         """Execute a single queued action. Returns a result dict."""
         from app.engine.action_queue import QueuedActionType
+
+        master = self._das.master_client
 
         if action.action_type == QueuedActionType.ORDER_SUBMIT:
             master_order_id = action.payload.get("master_order_id")
@@ -617,7 +611,6 @@ class ReplicationEngine:
                 follower_oid = await self._order_replicator.replicate_order(
                     master_order,
                     action.follower_id,
-                    follower_client,
                     master_order_id=master_order_id,
                 )
                 return {"follower_order_id": follower_oid}
@@ -628,7 +621,7 @@ class ReplicationEngine:
             master_order_id = action.payload.get("master_order_id")
             if master_order_id is not None:
                 res = await self._order_replicator.cancel_follower_orders(
-                    master_order_id, {action.follower_id: follower_client}
+                    master_order_id
                 )
                 return {"cancel_result": res.get(action.follower_id, False)}
             return {"skipped": True, "reason": "No master order ID"}
@@ -645,7 +638,6 @@ class ReplicationEngine:
                     master_order_id,
                     new_quantity=new_qty,
                     new_price=new_price,
-                    follower_clients={action.follower_id: follower_client},
                 )
                 return {"replace_result": res.get(action.follower_id, False)}
             return {"skipped": True, "reason": "No master order ID"}
@@ -658,7 +650,6 @@ class ReplicationEngine:
                 master_qty=payload["master_qty"],
                 master_price=payload["master_price"],
                 follower_id=action.follower_id,
-                follower_client=follower_client,
                 follower_config=config,
             )
             return {"locate_started": True}

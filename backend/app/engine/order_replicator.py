@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from das_bridge import DASClient
 from das_bridge.domain.orders import (
@@ -24,6 +24,9 @@ from app.engine.multiplier_manager import MultiplierManager
 from app.services.audit_service import AuditService
 from app.services.notification_service import NotificationService
 
+if TYPE_CHECKING:
+    from app.services.das_service import DASService
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,11 +37,13 @@ class OrderReplicator:
 
     def __init__(
         self,
+        das_service: DASService,
         multiplier_mgr: MultiplierManager,
         blacklist_mgr: BlacklistManager,
         audit: AuditService,
         notifier: NotificationService,
     ) -> None:
+        self._das = das_service
         self._multiplier_mgr = multiplier_mgr
         self._blacklist_mgr = blacklist_mgr
         self._audit = audit
@@ -55,11 +60,17 @@ class OrderReplicator:
         scaled = round(quantity * multiplier)
         return max(scaled, 1)  # Never submit 0-share orders
 
+    def _get_follower(self, follower_id: str) -> DASClient | None:
+        """Get a connected follower client, or None."""
+        client = self._das.get_follower_client(follower_id)
+        if client and client.is_running:
+            return client
+        return None
+
     async def replicate_order(
         self,
         master_order: BaseOrder,
         follower_id: str,
-        follower_client: DASClient,
         master_order_id: int,
     ) -> int | None:
         """Replicate a master order to a single follower.
@@ -71,11 +82,15 @@ class OrderReplicator:
            Currently not implemented because DAS auto-rejects orders
            that exceed available buying power.
         """
+        client = self._get_follower(follower_id)
+        if not client:
+            return None
+
         symbol = master_order.symbol
         scaled_qty = self._scale_quantity(master_order.quantity, follower_id, symbol)
 
         try:
-            result = await self._submit_matching_order(follower_client, master_order, scaled_qty)
+            result = await self._submit_matching_order(client, master_order, scaled_qty)
 
             if result and result.is_rejected:
                 await self._audit.error(
@@ -200,7 +215,6 @@ class OrderReplicator:
     async def cancel_follower_orders(
         self,
         master_order_id: int,
-        follower_clients: dict[str, DASClient],
     ) -> dict[str, bool]:
         """Cancel all follower orders that correspond to a master order.
 
@@ -210,8 +224,8 @@ class OrderReplicator:
         results: dict[str, bool] = {}
 
         for follower_id, follower_order_id in follower_ids.items():
-            client = follower_clients.get(follower_id)
-            if not client or not client.is_running:
+            client = self._get_follower(follower_id)
+            if not client:
                 results[follower_id] = False
                 continue
 
@@ -242,7 +256,6 @@ class OrderReplicator:
         master_order_id: int,
         new_quantity: int | None,
         new_price: Decimal | None,
-        follower_clients: dict[str, DASClient],
     ) -> dict[str, bool]:
         """Replace all follower orders corresponding to a master order.
 
@@ -253,8 +266,8 @@ class OrderReplicator:
         results: dict[str, bool] = {}
 
         for follower_id, follower_order_id in follower_ids.items():
-            client = follower_clients.get(follower_id)
-            if not client or not client.is_running:
+            client = self._get_follower(follower_id)
+            if not client:
                 results[follower_id] = False
                 continue
 
