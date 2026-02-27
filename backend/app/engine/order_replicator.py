@@ -130,7 +130,7 @@ class OrderReplicator:
                 )
                 return None
 
-            if result and result.order_id is not None:
+            if result and result.is_success and result.order_id is not None:
                 follower_order_id = result.order_id
                 # Track mapping
                 if master_order_id not in self._order_map:
@@ -150,6 +150,28 @@ class OrderReplicator:
                     self._multiplier_mgr.get_effective(follower_id, symbol),
                 )
                 return follower_order_id
+
+            # Unexpected status — not rejected, not successful
+            logger.warning(
+                "Unexpected order result for %s on %s: status=%s "
+                "order_id=%s message=%s",
+                symbol,
+                follower_id,
+                result.status if result else "no_result",
+                result.order_id if result else None,
+                result.message if result else None,
+            )
+            await self._notifier.broadcast(
+                "alert",
+                {
+                    "level": "warn",
+                    "message": (
+                        f"Unexpected order status for {symbol}"
+                        f" on {follower_id}:"
+                        f" {result.status if result else 'no result'}"
+                    ),
+                },
+            )
 
         except Exception as e:
             logger.error(
@@ -254,14 +276,31 @@ class OrderReplicator:
             try:
                 success = await client.cancel_order(follower_order_id)
                 results[follower_id] = success
+                order = client.get_order(follower_order_id)
+                symbol = order.symbol if order else "UNKNOWN"
                 if success:
-                    order = client.get_order(follower_order_id)
-                    symbol = order.symbol if order else "UNKNOWN"
                     logger.info(
                         "Cancelled %s order on %s (follower_oid=%s)",
                         symbol,
                         follower_id,
                         follower_order_id,
+                    )
+                else:
+                    logger.warning(
+                        "Cancel failed for %s order on %s (follower_oid=%s)",
+                        symbol,
+                        follower_id,
+                        follower_order_id,
+                    )
+                    await self._notifier.broadcast(
+                        "alert",
+                        {
+                            "level": "warn",
+                            "message": (
+                                f"Cancel failed for {symbol}"
+                                f" on {follower_id}"
+                            ),
+                        },
                     )
             except Exception as e:
                 results[follower_id] = False
@@ -320,6 +359,26 @@ class OrderReplicator:
                         follower_id,
                         scaled_qty,
                         new_price,
+                    )
+                else:
+                    logger.warning(
+                        "Replace failed for %s order on %s "
+                        "(follower_oid=%s qty=%d price=%s)",
+                        order.symbol,
+                        follower_id,
+                        follower_order_id,
+                        scaled_qty,
+                        new_price,
+                    )
+                    await self._notifier.broadcast(
+                        "alert",
+                        {
+                            "level": "warn",
+                            "message": (
+                                f"Replace failed for {order.symbol}"
+                                f" on {follower_id}"
+                            ),
+                        },
                     )
             except Exception as e:
                 results[follower_id] = False

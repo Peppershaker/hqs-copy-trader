@@ -205,7 +205,28 @@ class LocateReplicator:
             await self._update_locate_status(locate_map_id, "failed")
             return
         try:
-            await follower_client.accept_locate_offer(offer)
+            locate_future = await follower_client.accept_locate_offer(offer)
+            result = await locate_future
+            if not result.is_filled:
+                await self._update_locate_status(locate_map_id, "failed")
+                logger.error(
+                    "Locate not filled for %s on %s: state=%s shares=%d",
+                    symbol,
+                    follower_id,
+                    result.state,
+                    result.shares_filled,
+                )
+                await self._notifier.broadcast(
+                    "alert",
+                    {
+                        "level": "error",
+                        "message": (
+                            f"Locate accept failed for {symbol}"
+                            f" on {follower_id}: {result.state}"
+                        ),
+                    },
+                )
+                return
             await self._update_locate_status(locate_map_id, "accepted")
             logger.info(
                 "Auto-accepted locate for %s on %s",

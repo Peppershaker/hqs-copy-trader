@@ -226,17 +226,15 @@ class ReplicationEngine:
         """Subscribe to position events on all follower clients."""
         for fid, client in self._das.follower_clients.items():
 
-            def _make_handler(
+            def _make_coro(
                 _fid: str,
-            ) -> Callable[[PositionOpenedEvent], None]:
-                def handler(event: PositionOpenedEvent) -> None:
-                    asyncio.ensure_future(
-                        self._on_follower_position_opened(event, _fid)
-                    )
+            ) -> Callable[[PositionOpenedEvent], Coroutine[Any, Any, None]]:
+                async def coro(event: PositionOpenedEvent) -> None:
+                    await self._on_follower_position_opened(event, _fid)
 
-                return handler
+                return coro
 
-            unsub = client.on(PositionOpenedEvent, _make_handler(fid))
+            unsub = client.on(PositionOpenedEvent, _fire(_make_coro(fid)))
             self._unsubscribers.append(unsub)
 
     # --- Master event handlers ---
