@@ -46,4 +46,4 @@ next-env.d.ts
 **/*.pyd
 
 backend/das_copy_trader.db
-backend/logs/*.log*
+backend/logs/

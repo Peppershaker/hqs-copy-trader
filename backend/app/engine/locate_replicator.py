@@ -15,6 +15,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from das_bridge import DASClient
+from das_bridge.domain.short import LocateOffer
 
 from app.database import get_session_factory
 from app.engine.blacklist_manager import BlacklistManager
@@ -181,7 +182,7 @@ class LocateReplicator:
     async def _accept_locate(
         self,
         locate_map_id: int,
-        offer: Any,
+        offer: LocateOffer,
         follower_id: str,
         symbol: str,
     ) -> None:

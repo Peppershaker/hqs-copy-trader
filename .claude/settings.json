@@ -5,7 +5,10 @@
       "Read(//home/victor/code/**)",
       "Bash(find /home/victor/code/das_auto_order/backend/app/api -name \"*.py\" -type f -exec grep -l \"audit\" {} ;)",
       "Bash(python3 -c \"import das_bridge; print\\(das_bridge.__version__\\)\")",
-      "Bash(grep -n \"\\\\[order\\\\]\\\\|\\\\[system\\\\]\" /home/victor/code/das_auto_order/backend/app/engine/*.py /home/victor/code/das_auto_order/backend/app/services/*.py)"
+      "Bash(grep -n \"\\\\[order\\\\]\\\\|\\\\[system\\\\]\" /home/victor/code/das_auto_order/backend/app/engine/*.py /home/victor/code/das_auto_order/backend/app/services/*.py)",
+      "Bash(python3 -c \"import das_bridge; print\\(das_bridge.__file__\\)\")",
+      "Bash(python3 -c \"from dataclasses import asdict; from src.das_bridge.domain.positions import Position; import inspect; print\\(inspect.getmembers\\(Position, predicate=inspect.ismethod\\)\\); print\\(''\\\\n---\\\\n''\\); print\\(asdict.__doc__\\)\")",
+      "Bash(python3:*)"
     ]
   }
 }

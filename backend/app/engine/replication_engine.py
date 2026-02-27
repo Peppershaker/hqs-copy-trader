@@ -25,7 +25,7 @@ from das_bridge.domain.events.short_locate_events import (
     LocateOrderUpdatedEvent,
 )
 
-from app.engine.action_queue import ActionQueue, QueuedActionType
+from app.engine.action_queue import ActionQueue, QueuedAction, QueuedActionType
 from app.engine.blacklist_manager import BlacklistManager
 from app.engine.locate_replicator import LocateReplicator
 from app.engine.multiplier_manager import MultiplierManager
@@ -102,7 +102,7 @@ class ReplicationEngine:
         self._action_queue = ActionQueue()
 
         # Event unsubscribe callbacks
-        self._unsubscribers: list[Any] = []
+        self._unsubscribers: list[Callable[[], None]] = []
         self._running = False
 
         # Follower configs cache (loaded from DB)
@@ -629,7 +629,7 @@ class ReplicationEngine:
 
     async def _replay_single(
         self,
-        action: Any,
+        action: QueuedAction,
     ) -> dict[str, Any]:
         """Execute a single queued action. Returns a result dict."""
         master = self._das.master_client

@@ -33,9 +33,9 @@ class QueuedAction:
     timestamp: float = field(default_factory=time.time)
 
     # Payload differs by action_type;
-    # ORDER_SUBMIT  → {"order_snapshot": {...order fields...}}
-    # ORDER_CANCEL  → {"master_order_token": int}
-    # ORDER_REPLACE → {"master_order_token": int, "new_quantity": int|None, "new_price": str|None}
+    # ORDER_SUBMIT  → {"master_order_id": int}
+    # ORDER_CANCEL  → {"master_order_id": int}
+    # ORDER_REPLACE → {"master_order_id": int, "new_quantity": int|None, "new_price": str|None}
     # LOCATE        → {"master_qty": int, "master_price": float, "follower_config": {...}}
     payload: dict[str, Any] = field(default_factory=lambda: {})
 

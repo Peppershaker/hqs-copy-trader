@@ -7,13 +7,14 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from das_bridge import DASClient
 from das_bridge.domain.orders import (
     BaseOrder,
     LimitOrder,
     MarketOrder,
+    OrderResult,
     StopLimitOrder,
     StopOrder,
     TrailingStopOrder,
@@ -152,7 +153,7 @@ class OrderReplicator:
         client: DASClient,
         master_order: BaseOrder,
         quantity: int,
-    ) -> Any:
+    ) -> OrderResult:
         """Submit an order on the follower matching the master order type.
 
         Token generation is handled by das-bridge's OrderManager.

@@ -10,6 +10,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from das_bridge.domain.positions import Position
+
 from app.engine.multiplier_manager import MultiplierManager
 from app.services.notification_service import NotificationService
 
@@ -79,19 +81,13 @@ class PositionTracker:
             )
 
     @staticmethod
-    def _serialize_position(pos: Any) -> dict[str, Any]:
+    def _serialize_position(pos: Position) -> dict[str, Any]:
         """Convert a DAS position object to a JSON-serializable dict."""
-        unrealized = (
-            float(pos.das_unrealized_pnl) if pos.das_unrealized_pnl else 0.0
-        )
+        unrealized = float(pos.unrealized_pnl)
         realized = float(pos.realized_pnl)
         return {
             "symbol": pos.symbol,
-            "side": (
-                str(pos.position_type.name)
-                if hasattr(pos.position_type, "name")
-                else str(pos.position_type)
-            ),
+            "side": pos.position_type.name,
             "quantity": pos.quantity,
             "avg_cost": float(pos.avg_cost),
             "realized_pnl": realized,
