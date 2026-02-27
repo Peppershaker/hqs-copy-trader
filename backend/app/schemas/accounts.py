@@ -53,7 +53,7 @@ class FollowerCreate(BaseModel):
     password: str
     account_id: str
     base_multiplier: float = Field(default=1.0, gt=0)
-    max_locate_price_delta: float = Field(default=0.01, ge=0)
+    max_locate_price: float = Field(default=0.10, ge=0)
     locate_retry_timeout: int = Field(default=300, ge=0)
     auto_accept_locates: bool = False
     enabled: bool = True
@@ -71,7 +71,7 @@ class FollowerUpdate(BaseModel):
     password: str | None = None
     account_id: str | None = None
     base_multiplier: float | None = Field(default=None, gt=0)
-    max_locate_price_delta: float | None = Field(default=None, ge=0)
+    max_locate_price: float | None = Field(default=None, ge=0)
     locate_retry_timeout: int | None = Field(default=None, ge=0)
     auto_accept_locates: bool | None = None
     enabled: bool | None = None
@@ -89,7 +89,7 @@ class FollowerResponse(BaseModel):
     username: str
     account_id: str
     base_multiplier: float
-    max_locate_price_delta: float
+    max_locate_price: float
     locate_retry_timeout: int
     auto_accept_locates: bool
     enabled: bool

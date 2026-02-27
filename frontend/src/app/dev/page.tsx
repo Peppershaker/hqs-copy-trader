@@ -505,7 +505,7 @@ function LogDirectoryPanel() {
                   onClick={() => toggle(d.name)}
                   className="border-b border-border/50 hover:bg-muted/30 cursor-pointer"
                 >
-                  <td className="px-4 py-1.5">
+                  <td className="px-4 py-1.5" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selected.has(d.name)}

@@ -32,7 +32,7 @@ export interface Follower {
   username: string;
   account_id: string;
   base_multiplier: number;
-  max_locate_price_delta: number;
+  max_locate_price: number;
   locate_retry_timeout: number;
   auto_accept_locates: boolean;
   enabled: boolean;
@@ -51,7 +51,7 @@ export interface FollowerCreate {
   password: string;
   account_id: string;
   base_multiplier?: number;
-  max_locate_price_delta?: number;
+  max_locate_price?: number;
   locate_retry_timeout?: number;
   auto_accept_locates?: boolean;
   enabled?: boolean;

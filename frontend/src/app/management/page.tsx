@@ -90,8 +90,8 @@ function FollowerPanel({ follower }: { follower: Follower }) {
               </p>
             </div>
             <div>
-              <span className="text-xs text-muted-foreground">Locate Δ</span>
-              <p>${follower.max_locate_price_delta}</p>
+              <span className="text-xs text-muted-foreground">Max Locate</span>
+              <p>${follower.max_locate_price}</p>
             </div>
             <div>
               <span className="text-xs text-muted-foreground">

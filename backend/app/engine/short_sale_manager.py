@@ -288,7 +288,10 @@ class ShortSaleManager:
             await self._broadcast_task(task)
             return
 
-        max_sell = client.get_max_sell(task.symbol)
+        max_sell = await client.get_max_sell(task.symbol, strategy="precise")
+        logger.info(
+            "Follower %s max_sell for %s is %d", task.follower_id, task.symbol, max_sell
+        )
         deficit = task.required_qty - max_sell
 
         logger.info(

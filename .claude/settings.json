@@ -34,7 +34,18 @@
       "Bash(python -m ruff format app/api/reconcile.py)",
       "Bash(python -m ruff check app/engine/replication_engine.py app/engine/position_tracker.py app/engine/multiplier_manager.py app/models/__init__.py)",
       "Bash(python -m ruff format --check app/engine/replication_engine.py app/engine/position_tracker.py app/engine/multiplier_manager.py)",
-      "Bash(npx next lint)"
+      "Bash(npx next lint)",
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(pip install -e .)",
+      "Bash(source .venv/bin/activate)",
+      "Bash(pytest tests/test_shortable_shares.py -v)",
+      "Bash(pytest tests/ -v --tb=short)"
+    ],
+    "additionalDirectories": [
+      "/home/victor/code/das-bridge/src/das_bridge/managers",
+      "/home/victor/code/das-bridge/src/das_bridge",
+      "/home/victor/code/das-bridge/tests",
+      "/home/victor/code/das-service/tests"
     ]
   }
 }

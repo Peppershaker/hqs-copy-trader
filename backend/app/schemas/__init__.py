@@ -9,7 +9,6 @@ from app.schemas.accounts import (
     MultiplierUpdate,
 )
 from app.schemas.blacklist import BlacklistEntryCreate, BlacklistEntryResponse
-from app.schemas.locates import LocateActionRequest, LocateMapResponse
 from app.schemas.multipliers import SymbolMultiplierResponse, SymbolMultiplierUpdate
 from app.schemas.orders import OrderReplicationResponse
 from app.schemas.ws import WSMessage
@@ -26,7 +25,5 @@ __all__ = [
     "SymbolMultiplierResponse",
     "SymbolMultiplierUpdate",
     "OrderReplicationResponse",
-    "LocateMapResponse",
-    "LocateActionRequest",
     "WSMessage",
 ]

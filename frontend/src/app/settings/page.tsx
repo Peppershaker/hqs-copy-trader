@@ -290,7 +290,7 @@ const DEFAULT_FOLLOWER: FollowerCreate = {
   password: "",
   account_id: "",
   base_multiplier: 1,
-  max_locate_price_delta: 0.5,
+  max_locate_price: 0.10,
   locate_retry_timeout: 15,
   auto_accept_locates: false,
   enabled: true,
@@ -323,7 +323,7 @@ function FollowerForm({
         password: "",
         account_id: initial.account_id,
         base_multiplier: initial.base_multiplier,
-        max_locate_price_delta: initial.max_locate_price_delta,
+        max_locate_price: initial.max_locate_price,
         locate_retry_timeout: initial.locate_retry_timeout,
         auto_accept_locates: initial.auto_accept_locates,
         enabled: initial.enabled,
@@ -379,7 +379,7 @@ function FollowerForm({
       [key]: [
         "port",
         "base_multiplier",
-        "max_locate_price_delta",
+        "max_locate_price",
         "locate_retry_timeout",
       ].includes(key)
         ? Number(v)
@@ -445,9 +445,9 @@ function FollowerForm({
           type="number"
         />
         <Field
-          label="Max Locate Δ ($)"
-          value={form.max_locate_price_delta ?? 0.5}
-          onChange={set("max_locate_price_delta")}
+          label="Max Locate ($)"
+          value={form.max_locate_price ?? 0.10}
+          onChange={set("max_locate_price")}
           type="number"
         />
         <Field
@@ -572,7 +572,7 @@ function FollowerCard({
           <span>Account: {follower.account_id}</span>
           <span>User: {follower.username}</span>
           <span>Multiplier: {follower.base_multiplier}×</span>
-          <span>Locate Δ: ${follower.max_locate_price_delta}</span>
+          <span>Max Locate: ${follower.max_locate_price}</span>
           <span>
             {follower.host}:{follower.port}
           </span>

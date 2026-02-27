@@ -173,7 +173,6 @@ async def _load_and_connect() -> dict[str, dict[str, Any]]:
                 },
             )
             follower_configs[f.id] = {
-                "max_locate_price_delta": f.max_locate_price_delta,
                 "max_locate_price": f.max_locate_price,
                 "locate_retry_timeout": f.locate_retry_timeout,
                 "auto_accept_locates": f.auto_accept_locates,

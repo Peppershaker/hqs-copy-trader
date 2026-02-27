@@ -24,9 +24,6 @@ class Follower(Base):
     password: Mapped[str] = mapped_column(String, nullable=False)
     account_id: Mapped[str] = mapped_column(String, nullable=False)
     base_multiplier: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
-    max_locate_price_delta: Mapped[float] = mapped_column(
-        Float, nullable=False, default=0.01
-    )
     locate_retry_timeout: Mapped[int] = mapped_column(
         Integer, nullable=False, default=300
     )
