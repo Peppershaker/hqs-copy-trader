@@ -27,7 +27,8 @@
       "Bash(find . -path ./frontend -prune -o -path \"./.venv\" -prune -o -type f -name \"*.py\" -exec grep -l \"short\\\\|locate\\\\|SHORT\" {} ;)",
       "Bash(xargs ls -la)",
       "Bash(ruff check app/engine/short_sale_manager.py app/engine/replication_engine.py app/engine/action_queue.py app/models/follower.py app/api/short_sales.py app/api/system.py app/api/websocket.py app/main.py)",
-      "Bash(ruff format --check app/engine/short_sale_manager.py app/engine/replication_engine.py app/engine/action_queue.py app/models/follower.py app/api/short_sales.py app/api/system.py app/api/websocket.py app/main.py)"
+      "Bash(ruff format --check app/engine/short_sale_manager.py app/engine/replication_engine.py app/engine/action_queue.py app/models/follower.py app/api/short_sales.py app/api/system.py app/api/websocket.py app/main.py)",
+      "Bash(python -m ruff check app/engine/order_replicator.py app/engine/short_sale_manager.py)"
     ]
   }
 }

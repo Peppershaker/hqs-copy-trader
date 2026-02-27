@@ -20,17 +20,15 @@ import logging
 import time
 from dataclasses import asdict, dataclass, field
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from das_bridge.domain.orders import BaseOrder
 
 from app.engine.blacklist_manager import BlacklistManager
 from app.engine.multiplier_manager import MultiplierManager
+from app.engine.order_replicator import OrderReplicator
+from app.services.das_service import DASService
 from app.services.notification_service import NotificationService
-
-if TYPE_CHECKING:
-    from app.engine.order_replicator import OrderReplicator
-    from app.services.das_service import DASService
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +107,15 @@ class ShortSaleManager:
         """
         symbol = master_order.symbol
         multiplier = self._multiplier_mgr.get_effective(follower_id, symbol)
-        required_qty = max(round(master_order.quantity * multiplier), 1)
+        required_qty = max(round(master_order.quantity * multiplier), 0)
+
+        if required_qty == 0:
+            logger.info(
+                "Skipping short sale for %s on %s: scaled quantity is 0",
+                symbol,
+                follower_id,
+            )
+            return ""
 
         task = ShortSaleTask(
             id=self._next_id(),

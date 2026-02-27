@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from das_bridge import DASClient
 from das_bridge.domain.short import LocateOffer
@@ -21,10 +21,8 @@ from app.database import get_session_factory
 from app.engine.blacklist_manager import BlacklistManager
 from app.engine.multiplier_manager import MultiplierManager
 from app.models.locate_map import LocateMap
+from app.services.das_service import DASService
 from app.services.notification_service import NotificationService
-
-if TYPE_CHECKING:
-    from app.services.das_service import DASService
 
 logger = logging.getLogger(__name__)
 

@@ -48,4 +48,4 @@ next-env.d.ts
 backend/das_copy_trader.db
 backend/logs/
 
-das_copy_trader.db
+.claude

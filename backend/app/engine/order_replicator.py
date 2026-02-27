@@ -7,8 +7,6 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal
-from typing import TYPE_CHECKING
-
 from das_bridge import DASClient
 from das_bridge.domain.orders import (
     BaseOrder,
@@ -22,10 +20,8 @@ from das_bridge.domain.orders import (
 
 from app.engine.blacklist_manager import BlacklistManager
 from app.engine.multiplier_manager import MultiplierManager
+from app.services.das_service import DASService
 from app.services.notification_service import NotificationService
-
-if TYPE_CHECKING:
-    from app.services.das_service import DASService
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +55,7 @@ class OrderReplicator:
         multiplier = self._multiplier_mgr.get_effective(follower_id, symbol)
         source = self._multiplier_mgr.get_source(follower_id, symbol)
         scaled = round(quantity * multiplier)
-        result = max(scaled, 1)  # Never submit 0-share orders
+        result = max(scaled, 0)  # Non-negative, 0 means skip
         logger.debug(
             "Scale qty: follower=%s symbol=%s master_qty=%d "
             "multiplier=%.4f source=%s -> %d",
@@ -97,6 +93,14 @@ class OrderReplicator:
 
         symbol = master_order.symbol
         scaled_qty = self._scale_quantity(master_order.quantity, follower_id, symbol)
+
+        if scaled_qty == 0:
+            logger.info(
+                "Skipping %s replication to %s: scaled quantity is 0",
+                symbol,
+                follower_id,
+            )
+            return None
 
         logger.debug(
             "Submitting %s to %s: symbol=%s side=%s qty=%d",

@@ -9,12 +9,10 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
-if TYPE_CHECKING:
-    from app.engine.replication_engine import ReplicationEngine
-    from app.services.das_service import DASService
+from app.engine.replication_engine import ReplicationEngine
+from app.services.das_service import DASService
 
 logger = logging.getLogger(__name__)
 

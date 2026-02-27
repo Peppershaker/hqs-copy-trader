@@ -8,15 +8,13 @@ Monitors position changes on both master and follower accounts to:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from das_bridge.domain.positions import Position
 
 from app.engine.multiplier_manager import MultiplierManager
+from app.services.das_service import DASService
 from app.services.notification_service import NotificationService
-
-if TYPE_CHECKING:
-    from app.services.das_service import DASService
 
 logger = logging.getLogger(__name__)
 
