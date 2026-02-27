@@ -17,10 +17,10 @@ logger = logging.getLogger(__name__)
 
 class QueuedActionType(StrEnum):
     """Types of actions that can be queued for disconnected followers."""
+
     ORDER_SUBMIT = "order_submit"
     ORDER_CANCEL = "order_cancel"
     ORDER_REPLACE = "order_replace"
-    LOCATE = "locate"
 
 
 @dataclass
@@ -38,8 +38,6 @@ class QueuedAction:
     # ORDER_CANCEL  → {"master_order_id": int}
     # ORDER_REPLACE → {"master_order_id": int,
     #   "new_quantity": int|None, "new_price": str|None}
-    # LOCATE → {"master_qty": int, "master_price": float,
-    #   "follower_config": {...}}
     payload: dict[str, Any] = field(default_factory=lambda: {})
 
     def to_dict(self) -> dict[str, Any]:

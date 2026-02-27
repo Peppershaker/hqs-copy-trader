@@ -23,7 +23,11 @@
       "Bash(python -m ruff check app/ --select D,E501 --output-format json)",
       "Bash(python -m ruff check --select D,E501 --config 'lint.pydocstyle.convention = \"\"google\"\"' app/schemas/accounts.py app/schemas/blacklist.py app/schemas/locates.py app/schemas/multipliers.py app/schemas/orders.py app/services/das_service.py app/services/log_buffer.py app/services/notification_service.py)",
       "Bash(ruff check app/)",
-      "Read(//home/victor/**)"
+      "Read(//home/victor/**)",
+      "Bash(find . -path ./frontend -prune -o -path \"./.venv\" -prune -o -type f -name \"*.py\" -exec grep -l \"short\\\\|locate\\\\|SHORT\" {} ;)",
+      "Bash(xargs ls -la)",
+      "Bash(ruff check app/engine/short_sale_manager.py app/engine/replication_engine.py app/engine/action_queue.py app/models/follower.py app/api/short_sales.py app/api/system.py app/api/websocket.py app/main.py)",
+      "Bash(ruff format --check app/engine/short_sale_manager.py app/engine/replication_engine.py app/engine/action_queue.py app/models/follower.py app/api/short_sales.py app/api/system.py app/api/websocket.py app/main.py)"
     ]
   }
 }

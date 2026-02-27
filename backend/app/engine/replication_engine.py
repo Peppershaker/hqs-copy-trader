@@ -21,20 +21,18 @@ from das_bridge.domain.events.order_events import (
 from das_bridge.domain.events.position_events import (
     PositionOpenedEvent,
 )
-from das_bridge.domain.events.short_locate_events import (
-    LocateOrderUpdatedEvent,
-)
 
 from app.engine.action_queue import ActionQueue, QueuedAction, QueuedActionType
 from app.engine.blacklist_manager import BlacklistManager
-from app.engine.locate_replicator import LocateReplicator
 from app.engine.multiplier_manager import MultiplierManager
 from app.engine.order_replicator import OrderReplicator
 from app.engine.position_tracker import PositionTracker
+from app.engine.short_sale_manager import ShortSaleManager
 from app.services.das_service import DASService
 from app.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
+
 
 def _log_task_exception(task: asyncio.Task[Any]) -> None:
     """Log unhandled exceptions from fire-and-forget event handlers."""
@@ -86,10 +84,11 @@ class ReplicationEngine:
             self._blacklist_mgr,
             notifier,
         )
-        self._locate_replicator = LocateReplicator(
+        self._short_sale_mgr = ShortSaleManager(
             das_service,
             self._multiplier_mgr,
             self._blacklist_mgr,
+            self._order_replicator,
             notifier,
         )
         self._position_tracker = PositionTracker(
@@ -140,9 +139,9 @@ class ReplicationEngine:
         return self._order_replicator
 
     @property
-    def locate_replicator(self) -> LocateReplicator:
-        """Return the locate replicator sub-engine."""
-        return self._locate_replicator
+    def short_sale_manager(self) -> ShortSaleManager:
+        """Return the short sale manager sub-engine."""
+        return self._short_sale_mgr
 
     @property
     def position_tracker(self) -> PositionTracker:
@@ -188,8 +187,8 @@ class ReplicationEngine:
             except asyncio.CancelledError:
                 pass
 
-        # Cancel locate retries
-        await self._locate_replicator.cancel_all_retries()
+        # Cancel in-flight short sale tasks
+        await self._short_sale_mgr.cancel_all()
 
         # Unsubscribe from events
         for unsub in self._unsubscribers:
@@ -212,12 +211,6 @@ class ReplicationEngine:
 
         # Order replaced → replace follower orders
         unsub = master.on(OrderReplacedEvent, _fire(self._on_master_order_replaced))
-        self._unsubscribers.append(unsub)
-
-        # Locate filled → replicate to followers
-        unsub = master.on(
-            LocateOrderUpdatedEvent, _fire(self._on_master_locate_updated)
-        )
         self._unsubscribers.append(unsub)
 
         logger.info("Subscribed to master events")
@@ -300,12 +293,24 @@ class ReplicationEngine:
                         "action_type": "order_submit",
                         "symbol": order.symbol,
                         "message": (
-                            f"Follower {fid} offline"
-                            f" — order for {order.symbol} queued"
+                            f"Follower {fid} offline — order for {order.symbol} queued"
                         ),
                     },
                 )
                 results[fid] = None
+                continue
+
+            # Short sales go through the ShortSaleManager which
+            # checks capacity and auto-locates before placing the order.
+            if order.is_short:
+                config = self._follower_configs.get(fid, {})
+                await self._short_sale_mgr.handle_short_sale(
+                    master_order=order,
+                    follower_id=fid,
+                    master_order_id=master_order_id,
+                    follower_config=config,
+                )
+                results[fid] = None  # reported asynchronously
                 continue
 
             follower_oid = await self._order_replicator.replicate_order(
@@ -375,13 +380,15 @@ class ReplicationEngine:
                         "action_type": "order_cancel",
                         "symbol": symbol,
                         "message": (
-                            f"Follower {fid} offline"
-                            f" — cancel for {symbol} queued"
+                            f"Follower {fid} offline — cancel for {symbol} queued"
                         ),
                     },
                 )
 
         results = await self._order_replicator.cancel_follower_orders(master_order_id)
+
+        # Cancel any in-flight short sale tasks for this master order
+        await self._short_sale_mgr.on_master_order_cancelled(master_order_id)
 
         await self._notifier.broadcast(
             "order_cancelled",
@@ -450,78 +457,6 @@ class ReplicationEngine:
                 "follower_results": results,
             },
         )
-
-    async def _on_master_locate_updated(self, event: LocateOrderUpdatedEvent) -> None:
-        """Master locate order updated — if filled, replicate to followers."""
-        master = self._das.master_client
-        if not master:
-            return
-
-        logger.debug(
-            "Master locate event: symbol=%s status=%s",
-            getattr(event, "symbol", "?"),
-            getattr(event, "status", "?"),
-        )
-
-        # Only process filled locates
-        # Check the event for a 'filled' or 'executed' status
-        if not hasattr(event, "status") or event.status not in (
-            "FILLED",
-            "EXECUTED",
-            "filled",
-            "executed",
-        ):
-            return
-
-        symbol = event.symbol
-        qty = event.executed_shares if hasattr(event, "executed_shares") else 0
-        price = event.execution_price if hasattr(event, "execution_price") else 0
-
-        if qty <= 0:
-            return
-
-        logger.info(
-            "Master locate FILLED: symbol=%s qty=%d price=%s",
-            symbol,
-            qty,
-            price,
-        )
-
-        for fid, client in self._das.follower_clients.items():
-            if not client.is_running:
-                config = self._follower_configs.get(fid, {})
-                self._action_queue.enqueue(
-                    follower_id=fid,
-                    action_type=QueuedActionType.LOCATE,
-                    symbol=symbol,
-                    payload={
-                        "master_qty": qty,
-                        "master_price": float(price),
-                        "follower_config": config,
-                    },
-                )
-                await self._notifier.broadcast(
-                    "action_queued",
-                    {
-                        "follower_id": fid,
-                        "action_type": "locate",
-                        "symbol": symbol,
-                        "message": (
-                            f"Follower {fid} offline"
-                            f" — locate for {symbol} queued"
-                        ),
-                    },
-                )
-                continue
-
-            config = self._follower_configs.get(fid, {})
-            await self._locate_replicator.replicate_locate(
-                symbol=symbol,
-                master_qty=qty,
-                master_price=float(price),
-                follower_id=fid,
-                follower_config=config,
-            )
 
     # --- Follower event handlers ---
 
@@ -626,6 +561,7 @@ class ReplicationEngine:
             "status": status,
             "positions": positions,
             "master_orders": master_orders,
+            "short_sale_tasks": self._short_sale_mgr.get_active_tasks(),
         }
 
     # --- Queued-action replay ---
@@ -695,6 +631,18 @@ class ReplicationEngine:
                 else None
             )
             if master_order and master_order_id is not None:
+                # Short sales go through ShortSaleManager for
+                # capacity check + on-demand locate.
+                if master_order.is_short:
+                    config = self._follower_configs.get(action.follower_id, {})
+                    task_id = await self._short_sale_mgr.handle_short_sale(
+                        master_order,
+                        action.follower_id,
+                        master_order_id,
+                        config,
+                    )
+                    return {"short_sale_task_started": True, "task_id": task_id}
+
                 follower_oid = await self._order_replicator.replicate_order(
                     master_order,
                     action.follower_id,
@@ -744,17 +692,5 @@ class ReplicationEngine:
                 )
                 return {"replace_result": res.get(action.follower_id, False)}
             return {"skipped": True, "reason": "No master order ID"}
-
-        elif action.action_type == QueuedActionType.LOCATE:
-            payload = action.payload
-            config = payload.get("follower_config", {})
-            await self._locate_replicator.replicate_locate(
-                symbol=action.symbol,
-                master_qty=payload["master_qty"],
-                master_price=payload["master_price"],
-                follower_id=action.follower_id,
-                follower_config=config,
-            )
-            return {"locate_started": True}
 
         return {"skipped": True, "reason": f"Unknown action type: {action.action_type}"}

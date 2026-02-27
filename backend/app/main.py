@@ -21,10 +21,10 @@ from app.api import (
     dev,
     env_config,
     followers,
-    locates,
     master,
     multipliers,
     queue,
+    short_sales,
     system,
     websocket,
 )
@@ -91,7 +91,7 @@ async def lifespan(app: FastAPI):
     config = get_config()
 
     # Inject dependencies into route modules
-    locates.set_engine_getter(lambda: _engine)
+    short_sales.set_engine_getter(lambda: _engine)
     system.set_service_getters(lambda: _das_service, lambda: _engine)
     websocket.set_ws_dependencies(lambda: _notifier, lambda: _engine)
     queue.set_queue_engine_getter(lambda: _engine)
@@ -143,7 +143,7 @@ def create_app() -> FastAPI:
     app.include_router(followers.router)
     app.include_router(blacklist.router)
     app.include_router(multipliers.router)
-    app.include_router(locates.router)
+    app.include_router(short_sales.router)
     app.include_router(queue.router)
     app.include_router(system.router)
     app.include_router(websocket.router)

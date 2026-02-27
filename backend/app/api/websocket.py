@@ -66,15 +66,10 @@ async def _handle_client_message(message: dict[str, Any]) -> None:
     engine = _get_engine()
     action = message.get("action")
 
-    if action == "accept_locate":
-        locate_map_id = message.get("locate_map_id")
-        if locate_map_id:
-            await engine.locate_replicator.handle_user_accept(locate_map_id)
-
-    elif action == "reject_locate":
-        locate_map_id = message.get("locate_map_id")
-        if locate_map_id:
-            await engine.locate_replicator.handle_user_reject(locate_map_id)
+    if action == "cancel_short_sale_task":
+        task_id = message.get("task_id")
+        if task_id:
+            await engine.short_sale_manager.cancel_task(task_id)
 
     elif action == "override_multiplier":
         follower_id = message.get("follower_id")
