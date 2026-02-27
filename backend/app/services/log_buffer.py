@@ -1,14 +1,17 @@
-"""In-memory log buffer with a custom logging handler.
+"""Logging setup: in-memory ring buffer, file handlers, and configuration.
 
 Captures Python log records into a thread-safe ring buffer, separated by source
 (``app`` for das_auto_order logs, ``das_bridge`` for the DAS bridge library).
+Disk logs are written to a per-run directory with separate files for each source.
 """
 
 from __future__ import annotations
 
 import logging
+import pathlib
 import threading
 from collections import deque
+from datetime import datetime
 from typing import Any
 
 
@@ -86,5 +89,61 @@ class LogBufferHandler(logging.Handler):
             self.handleError(record)
 
 
+class _SourceFilter(logging.Filter):
+    """Route log records by logger-name prefix."""
+
+    def __init__(
+        self, *, include_prefix: str = "", exclude_prefix: str = "",
+    ) -> None:
+        super().__init__()
+        self._include = include_prefix
+        self._exclude = exclude_prefix
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if self._include:
+            return record.name.startswith(self._include)
+        if self._exclude:
+            return not record.name.startswith(self._exclude)
+        return True
+
+
 # Module-level singleton so it can be imported anywhere.
 log_buffer = LogBuffer()
+
+_LOG_FMT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+
+def configure_logging(level: str, log_base: pathlib.Path) -> None:
+    """Set up all logging: console, in-memory buffer, and per-run disk files.
+
+    *level* is a string like ``"DEBUG"`` or ``"INFO"``.
+    *log_base* is the parent directory for run directories (e.g. ``backend/logs``).
+    """
+    log_level = getattr(logging, level.upper(), logging.INFO)
+    formatter = logging.Formatter(_LOG_FMT)
+
+    # Console
+    logging.basicConfig(level=log_level, format=_LOG_FMT)
+
+    root = logging.getLogger()
+
+    # In-memory buffer (for WebSocket streaming)
+    buf_handler = LogBufferHandler(log_buffer)
+    buf_handler.setFormatter(formatter)
+    root.addHandler(buf_handler)
+
+    # Per-run directory with separate files
+    log_dir = log_base / datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    app_handler = logging.FileHandler(log_dir / "app.log")
+    app_handler.setLevel(log_level)
+    app_handler.setFormatter(formatter)
+    app_handler.addFilter(_SourceFilter(exclude_prefix="das_bridge"))
+    root.addHandler(app_handler)
+
+    bridge_handler = logging.FileHandler(log_dir / "das_bridge.log")
+    bridge_handler.setLevel(log_level)
+    bridge_handler.setFormatter(formatter)
+    bridge_handler.addFilter(_SourceFilter(include_prefix="das_bridge"))
+    root.addHandler(bridge_handler)

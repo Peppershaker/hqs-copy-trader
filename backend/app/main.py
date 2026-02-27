@@ -10,7 +10,6 @@ import asyncio
 import logging
 import pathlib
 from contextlib import asynccontextmanager
-from datetime import datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,7 +33,7 @@ from app.database import close_db, init_db
 from app.engine.replication_engine import ReplicationEngine
 from app.engine.scheduler import daily_restart_loop
 from app.services.das_service import DASService
-from app.services.log_buffer import LogBufferHandler, log_buffer
+from app.services.log_buffer import configure_logging, log_buffer
 from app.services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
@@ -61,24 +60,9 @@ async def lifespan(app: FastAPI):
     """Application lifespan: init DB on startup, stop services on shutdown."""
     config = get_config()
 
-    # Configure logging
-    log_level = getattr(logging, config.log_level.upper(), logging.INFO)
-    log_fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-    logging.basicConfig(level=log_level, format=log_fmt)
-
-    # Attach in-memory log buffer handler to root logger
-    buf_handler = LogBufferHandler(log_buffer)
-    buf_handler.setFormatter(logging.Formatter(log_fmt))
-    logging.getLogger().addHandler(buf_handler)
-
-    # Persist logs to disk (new file per run)
-    log_dir = pathlib.Path(__file__).resolve().parent.parent / "logs"
-    log_dir.mkdir(exist_ok=True)
-    log_file = log_dir / f"app_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setLevel(log_level)
-    file_handler.setFormatter(logging.Formatter(log_fmt))
-    logging.getLogger().addHandler(file_handler)
+    # Configure logging (console, in-memory buffer, per-run disk files)
+    log_base = pathlib.Path(__file__).resolve().parent.parent / "logs"
+    configure_logging(config.log_level, log_base)
 
     # Initialize database
     await init_db()
